@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // System settings - anyone can read, only admins can write
+    match /system/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+        (request.auth.token.email == 'admin@fonakeukeu.com' || 
+         request.auth.token.email == 'wisdom@gmail.com');
+    }
+    
+    // Candidates - anyone can read, only admins can write
+    match /candidates/{candidateId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && 
+        (request.auth.token.email == 'admin@fonakeukeu.com' || 
+         request.auth.token.email == 'wisdom@gmail.com');
+    }
+    
+    // Votes - anyone can read, only admins can write
+    match /votes/{voteId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && 
+        (request.auth.token.email == 'admin@fonakeukeu.com' || 
+         request.auth.token.email == 'wisdom@gmail.com');
+    }
+    
+    // Transactions - anyone can read, only admins can write
+    match /transactions/{transactionId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && 
+        (request.auth.token.email == 'admin@fonakeukeu.com' || 
+         request.auth.token.email == 'wisdom@gmail.com');
+    }
+    
+    // Pending votes - anyone can read/write for sandbox
+    match /pending_votes/{pendingId} {
+      allow read, write: if true;
+    }
+  }
+}

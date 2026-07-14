@@ -1,0 +1,17 @@
+{
+  "name": "camerpay-worker",
+  "version": "1.0.0",
+  "description": "CamerPay payment integration for Miss & Master voting platform",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail"
+  },
+  "dependencies": {
+    "firebase": "^10.7.1"
+  },
+  "devDependencies": {
+    "wrangler": "^3.28.0"
+  }
+}

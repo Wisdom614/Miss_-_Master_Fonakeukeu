@@ -1,0 +1,8 @@
+name = "camerpay-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]  # Add this to enable Node.js crypto
+
+# Environment variables (use wrangler secret for sensitive data)
+[vars]
+CAMERPAY_TOKEN = "467|CiI6PPhrf4KpdV91R7G2763vAzKektbYtk48VjKk6a4a545b"
