@@ -7,7 +7,8 @@ import {
   Plus, Minus, X, Star, TrendingUp, Smartphone, 
   Wallet, Loader2, Shield, Zap, Trophy, Medal, Gem,
   User, UserCheck, Heart, Sparkle, RefreshCw,
-  Award, Calendar, Diamond, Star as StarIcon
+  Award, Calendar, Diamond, Star as StarIcon,
+  CreditCard, Phone, Monitor, Smartphone as SmartphoneIcon
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -24,8 +25,37 @@ const Voting = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [expandedDescriptions, setExpandedDescriptions] = useState({});
+  const [paymentMethod, setPaymentMethod] = useState('mobile_money');
 
   const VOTES_PER_PAGE = 6;
+
+  // ✅ Card payment minimum
+  const CARD_MINIMUM_VOTES = 10;
+  const CARD_MINIMUM_AMOUNT = CARD_MINIMUM_VOTES * 100;
+
+  // Payment methods
+  const PAYMENT_METHODS = [
+    { 
+      id: 'mobile_money', 
+      label: 'Mobile Money', 
+      icon: SmartphoneIcon,
+      description: 'MTN / Orange',
+      color: 'from-blue-500/20 to-blue-600/10',
+      borderColor: 'border-blue-500/30',
+      textColor: 'text-blue-400',
+      activeColor: 'border-blue-500 bg-blue-500/10 text-blue-400 shadow-lg shadow-blue-500/20'
+    },
+    { 
+      id: 'card', 
+      label: 'Carte Bancaire', 
+      icon: CreditCard,
+      description: 'Visa / Mastercard',
+      color: 'from-gold-500/20 to-gold-600/10',
+      borderColor: 'border-gold-500/30',
+      textColor: 'text-gold-400',
+      activeColor: 'border-gold-500 bg-gold-500/10 text-gold-400 shadow-lg shadow-gold-500/20'
+    },
+  ];
 
   useEffect(() => {
     fetchCandidates();
@@ -89,76 +119,122 @@ const Voting = () => {
   const handleVoteClick = (candidate) => {
     setSelectedCandidate(candidate);
     setCustomVotes(1);
+    setPaymentMethod('mobile_money');
     setShowVoteModal(true);
   };
 
-  const handleVoteConfirm = async () => {
-    if (!selectedCandidate) {
-      toast.error('Veuillez sélectionner un candidat');
-      return;
-    }
-
-    const voteCount = parseInt(customVotes) || 1;
-    if (voteCount < 1) {
-      toast.error('Minimum 1 vote');
-      return;
-    }
-
-    // ✅ Phone number removed - user will enter it on Fapshi checkout
-
-    setProcessing(true);
-    try {
-      const workerUrl = import.meta.env.VITE_FAPSHI_WORKER_URL;
-      
-      console.log('📊 Confirming vote:', {
-        amount: voteCount * 100,
-        votes: voteCount,
-        candidateId: selectedCandidate.id,
-        candidateName: selectedCandidate.name
-      });
-      
-      const response = await fetch(`${workerUrl}/create-payment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: voteCount * 100,
-          candidateId: selectedCandidate.id,
-          candidateName: selectedCandidate.name,
-          votes: voteCount,
-          email: 'anonymous@voter.com',
-          // ✅ Phone number removed
-        })
-      });
-
-      const data = await response.json();
-      console.log('📦 Payment response:', data);
-      
-      if (data.paymentUrl) {
-        // ✅ Store ALL data in session storage
-        sessionStorage.setItem('pendingVote', data.invoiceId);
-        sessionStorage.setItem('pendingCandidate', selectedCandidate.id);
-        sessionStorage.setItem('pendingCandidateName', selectedCandidate.name);
-        sessionStorage.setItem('pendingVotesCount', String(voteCount));
-        
-        console.log('💾 Stored pending data:', {
-          invoiceId: data.invoiceId,
-          candidateId: selectedCandidate.id,
-          candidateName: selectedCandidate.name,
-          votes: voteCount
-        });
-        
-        setShowVoteModal(false);
-        window.location.href = data.paymentUrl;
-      } else {
-        toast.error(data.message || 'Erreur de création du paiement');
-      }
-    } catch (error) {
-      console.error('Payment error:', error);
-      toast.error('Erreur de connexion au service de paiement');
-    } finally {
-      setProcessing(false);
+  // ✅ Handle payment method change with auto vote adjustment
+  const handlePaymentMethodChange = (method) => {
+    setPaymentMethod(method);
+    if (method === 'card' && customVotes < CARD_MINIMUM_VOTES) {
+      setCustomVotes(CARD_MINIMUM_VOTES);
     }
   };
+
+  const handleVoteConfirm = async () => {
+  if (!selectedCandidate) {
+    toast.error('Veuillez sélectionner un candidat');
+    return;
+  }
+
+  let voteCount = parseInt(customVotes) || 1;
+  
+  // ✅ Auto-adjust for card minimum
+  if (paymentMethod === 'card' && voteCount < CARD_MINIMUM_VOTES) {
+    voteCount = CARD_MINIMUM_VOTES;
+    setCustomVotes(CARD_MINIMUM_VOTES);
+    toast.info(`Minimum ${CARD_MINIMUM_VOTES} votes requis pour la carte. Ajusté automatiquement.`);
+  }
+
+  if (voteCount < 1) {
+    toast.error('Minimum 1 vote');
+    return;
+  }
+
+  setProcessing(true);
+  try {
+    // ✅ Choose worker based on payment method
+    let workerUrl, endpoint;
+    
+    if (paymentMethod === 'card') {
+      workerUrl = import.meta.env.VITE_CAMERPAY_WORKER_URL;
+      endpoint = '/create-card-payment';
+      console.log('💳 Using CamerPay for card payment');
+    } else {
+      workerUrl = import.meta.env.VITE_FAPSHI_WORKER_URL;
+      endpoint = '/create-payment';
+      console.log('📱 Using Fapshi for mobile money');
+    }
+    
+    console.log('📊 Confirming vote:', {
+      amount: voteCount * 100,
+      votes: voteCount,
+      candidateId: selectedCandidate.id,
+      candidateName: selectedCandidate.name,
+      paymentMethod: paymentMethod
+    });
+    
+    const response = await fetch(`${workerUrl}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: voteCount * 100,
+        candidateId: selectedCandidate.id,
+        candidateName: selectedCandidate.name,
+        votes: voteCount,
+        email: 'anonymous@voter.com',
+        phone: '699123456',
+        payment_method: paymentMethod,
+      })
+    });
+
+    const data = await response.json();
+    console.log('📦 Payment response:', data);
+    
+    // ✅ Check for specific error codes and show friendly messages
+    if (data.status === 520 || (data.error && data.error.includes('520'))) {
+      setShowVoteModal(false);
+      toast.error('🔧 Le service de paiement par carte est temporairement indisponible. Veuillez réessayer dans quelques minutes ou utiliser Mobile Money.');
+      setProcessing(false);
+      return;
+    }
+    
+    if (data.paymentUrl) {
+      // ✅ Store ALL data in session storage
+      sessionStorage.setItem('pendingVote', data.invoiceId);
+      sessionStorage.setItem('pendingCandidate', selectedCandidate.id);
+      sessionStorage.setItem('pendingCandidateName', selectedCandidate.name);
+      sessionStorage.setItem('pendingVotesCount', String(voteCount));
+      sessionStorage.setItem('paymentMethod', paymentMethod);
+      
+      console.log('💾 Stored pending data:', {
+        invoiceId: data.invoiceId,
+        candidateId: selectedCandidate.id,
+        candidateName: selectedCandidate.name,
+        votes: voteCount,
+        paymentMethod: paymentMethod
+      });
+      
+      setShowVoteModal(false);
+      window.location.href = data.paymentUrl;
+    } else {
+      toast.error(data.message || 'Erreur de création du paiement');
+    }
+  } catch (error) {
+    console.error('Payment error:', error);
+    
+    // ✅ Handle network errors gracefully
+    if (error.message === 'Failed to fetch' || error.message.includes('network')) {
+      toast.error('🔧 Problème de connexion au service de paiement. Veuillez réessayer.');
+    } else if (error.message && error.message.includes('520')) {
+      toast.error('🔧 Le service de paiement par carte est temporairement indisponible. Veuillez réessayer dans quelques minutes.');
+    } else {
+      toast.error('Erreur de connexion au service de paiement. Veuillez réessayer.');
+    }
+  } finally {
+    setProcessing(false);
+  }
+};
 
   const toggleDescription = (candidateId) => {
     setExpandedDescriptions(prev => ({
@@ -444,7 +520,7 @@ const Voting = () => {
         </div>
       )}
 
-      {/* Vote Modal - Without Phone Input */}
+      {/* Vote Modal - With Professional Icons */}
       <AnimatePresence>
         {showVoteModal && selectedCandidate && (
           <motion.div
@@ -494,8 +570,38 @@ const Voting = () => {
                 <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gold-500/50 to-transparent" />
               </div>
 
-              {/* Vote Input */}
+              {/* ✅ Payment Method Selection - Professional Icons */}
               <div className="mb-6">
+                <label className="block text-sm text-gray-400 mb-2">
+                  Méthode de paiement
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {PAYMENT_METHODS.map((method) => {
+                    const Icon = method.icon;
+                    const isActive = paymentMethod === method.id;
+                    return (
+                      <button
+                        key={method.id}
+                        onClick={() => handlePaymentMethodChange(method.id)}
+                        className={`py-3 rounded-xl border-2 transition-all duration-300 flex flex-col items-center gap-1 ${
+                          isActive
+                            ? method.activeColor
+                            : `border-white/10 hover:${method.borderColor} text-gray-400`
+                        }`}
+                      >
+                        <Icon className={`w-6 h-6 ${isActive ? method.textColor : 'text-gray-500'}`} />
+                        <span className={`text-sm font-medium ${isActive ? method.textColor : 'text-gray-400'}`}>
+                          {method.label}
+                        </span>
+                        <span className="text-[10px] text-gray-500">{method.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Vote Input */}
+              <div className="mb-4">
                 <label className="block text-sm text-gray-400 mb-2">
                   Nombre de votes
                 </label>
@@ -539,6 +645,16 @@ const Voting = () => {
                 </p>
               </div>
 
+              {/* ✅ Card Minimum Notice */}
+              {paymentMethod === 'card' && (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 mb-4">
+                  <p className="text-blue-400 text-xs text-center flex items-center justify-center gap-2">
+                    <CreditCard className="w-4 h-4" />
+                    Minimum <strong>{CARD_MINIMUM_VOTES} votes</strong> ({CARD_MINIMUM_AMOUNT} FCFA) pour les paiements par carte
+                  </p>
+                </div>
+              )}
+
               {/* Quick Amount Buttons */}
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {[5, 10, 25, 50].map((amount) => (
@@ -564,12 +680,22 @@ const Voting = () => {
                 </span>
               </div>
 
-              {/* Info Text - User will enter phone on Fapshi */}
-              <p className="text-xs text-gray-500 text-center mb-4">
-                📱 Vous serez redirigé vers Fapshi pour finaliser le paiement
+              {/* Info Text */}
+              <p className="text-xs text-gray-500 text-center mb-4 flex items-center justify-center gap-1">
+                {paymentMethod === 'card' ? (
+                  <>
+                    <CreditCard className="w-3 h-3" />
+                    Vous serez redirigé vers la page de paiement par carte
+                  </>
+                ) : (
+                  <>
+                    <SmartphoneIcon className="w-3 h-3" />
+                    Vous serez redirigé vers Fapshi pour finaliser le paiement
+                  </>
+                )}
               </p>
 
-              {/* Confirm Button - No phone validation needed */}
+              {/* Confirm Button */}
               <button
                 onClick={handleVoteConfirm}
                 disabled={processing}
@@ -582,7 +708,11 @@ const Voting = () => {
                   </>
                 ) : (
                   <>
-                    <Wallet className="w-4 h-4" />
+                    {paymentMethod === 'card' ? (
+                      <CreditCard className="w-4 h-4" />
+                    ) : (
+                      <Wallet className="w-4 h-4" />
+                    )}
                     Confirmer le vote
                   </>
                 )}

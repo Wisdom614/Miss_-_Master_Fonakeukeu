@@ -8,9 +8,7 @@
     "deploy": "wrangler deploy",
     "logs": "wrangler tail"
   },
-  "dependencies": {
-    "firebase": "^10.7.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "wrangler": "^3.28.0"
   }
