@@ -9,17 +9,22 @@ import Results from './pages/Results';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import PaymentResult from './pages/PaymentResult';
+import WinnerAnnouncement from './pages/WinnerAnnouncement';
 import Navbar from './components/Navbar';
 import LoadingScreen from './components/LoadingScreen';
+import SystemShutdown from './components/SystemShutdown';
+import DeveloperBanner from './components/DeveloperBanner';
+import MinimalFooter from './components/MinimalFooter';
 import { Toaster } from 'react-hot-toast';
-
-import PaymentProcessing from './pages/PaymentProcessing';
 
 function App() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [isVotingExpired, setIsVotingExpired] = useState(false);
   const [settings, setSettings] = useState(null);
+  const [isSystemShutdown, setIsSystemShutdown] = useState(false);
+  const [shutdownSettings, setShutdownSettings] = useState(null);
+  const [showWinners, setShowWinners] = useState(false);
 
   // Check authentication state
   useEffect(() => {
@@ -30,7 +35,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Load settings and check countdown
+  // Load settings
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -40,12 +45,19 @@ function App() {
           const data = settingsDoc.data();
           setSettings(data);
           
-          // Check if voting has expired
           if (data.countdown?.enabled && data.countdown?.targetDate) {
             const now = new Date().getTime();
             const target = new Date(data.countdown.targetDate).getTime();
-            setIsVotingExpired(now > target);
+            const expired = now > target;
+            setIsVotingExpired(expired);
+            if (expired) setShowWinners(true);
           }
+          
+          if (data.showWinners === true) setShowWinners(true);
+          
+          const shutdown = data.systemShutdown || {};
+          setIsSystemShutdown(shutdown.enabled || false);
+          setShutdownSettings(shutdown);
         }
       } catch (error) {
         console.error('Error loading settings:', error);
@@ -53,9 +65,7 @@ function App() {
     };
     
     loadSettings();
-    
-    // Check every minute
-    const interval = setInterval(loadSettings, 60000);
+    const interval = setInterval(loadSettings, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -65,39 +75,59 @@ function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gradient-dark">
-        <Navbar user={user} />
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Home />} />
-          <Route 
-            path="/vote" 
-            element={
-              isVotingExpired ? 
-                <Navigate to="/results" /> : 
-                <Voting />
-            } 
-          />
-          <Route path="/payment-processing" element={<PaymentProcessing />} />
-          <Route path="/results" element={<Results />} />
-          <Route path="/payment-result" element={<PaymentResult />} />
-          
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminLogin />} />
-          <Route 
-            path="/admin/dashboard" 
-            element={
-              user?.email === 'admin@fonakeukeu.com' ? 
-                <AdminDashboard /> : 
-                <Navigate to="/admin" />
-            } 
-          />
-          
-          {/* 404 - Catch all */}
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+      <div className="min-h-screen bg-gradient-dark flex flex-col">
+        {/* ✅ Developer Banner - Above Navbar */}
+        {!isSystemShutdown && !showWinners && <DeveloperBanner />}
         
-        {/* Toast Notifications */}
+        {!isSystemShutdown && !showWinners && <Navbar user={user} />}
+        
+        <div className="flex-1">
+          <Routes>
+            <Route 
+              path="/" 
+              element={
+                isSystemShutdown ? 
+                  <SystemShutdown settings={{ systemShutdown: shutdownSettings }} /> : 
+                  (showWinners ? <Navigate to="/winners" /> : <Home />)
+              } 
+            />
+            <Route 
+              path="/vote" 
+              element={
+                isSystemShutdown ? 
+                  <SystemShutdown settings={{ systemShutdown: shutdownSettings }} /> : 
+                  (showWinners ? <Navigate to="/winners" /> : 
+                    (isVotingExpired ? <Navigate to="/winners" /> : <Voting />))
+              } 
+            />
+            <Route 
+              path="/results" 
+              element={
+                isSystemShutdown ? 
+                  <SystemShutdown settings={{ systemShutdown: shutdownSettings }} /> : 
+                  <Results />
+              } 
+            />
+            <Route path="/payment-result" element={<PaymentResult />} />
+            <Route path="/winners" element={<WinnerAnnouncement />} />
+            
+            <Route path="/admin" element={<AdminLogin />} />
+            <Route 
+              path="/admin/dashboard" 
+              element={
+                user?.email === 'admin@fonakeukeu.com' ? 
+                  <AdminDashboard /> : 
+                  <Navigate to="/admin" />
+              } 
+            />
+            
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </div>
+        
+        {/* ✅ Minimal Footer */}
+        {!isSystemShutdown && !showWinners && <MinimalFooter />}
+        
         <Toaster 
           position="bottom-center"
           toastOptions={{

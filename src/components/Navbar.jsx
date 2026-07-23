@@ -33,6 +33,7 @@ const Navbar = ({ user }) => {
               <Sparkles className="w-3 h-3 text-gold-400 animate-pulse-gold hidden sm:inline" />
             </Link>
             
+            
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-2">
               {navItems.map(({ path, icon: Icon, label }) => (

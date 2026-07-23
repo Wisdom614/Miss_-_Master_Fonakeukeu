@@ -6,8 +6,14 @@ import {
   ArrowLeft, BarChart3, UserPlus, LogOut,
   Settings, DollarSign, Smartphone, Shield,
   Calendar, Clock, TrendingUp, Award,
-  RefreshCw, Mail, Phone, Globe,
-  CreditCard, Wallet, Sliders, Zap, Star
+  ToggleLeft, ToggleRight, CheckCircle,
+  AlertCircle, RefreshCw, Eye, EyeOff,
+  Sliders, Package, Gift, Zap, Star,
+  Sun, Moon, Palette, Type, Layout,
+  Database, Cloud, Link, Key,
+  Mail, Phone, MapPin, Globe,
+  CreditCard, Wallet, Coins, AlertTriangle,
+  Trophy
 } from 'lucide-react';
 import { 
   collection, 
@@ -75,8 +81,36 @@ const AdminDashboard = () => {
       secondaryColor: '#1a1a1a',
       accentColor: '#f3d05f'
     },
+    // Payment Settings
+    payment: {
+      mobileMoney: {
+        enabled: true,
+        minVotes: 1,
+        pricePerVote: 100,
+        provider: 'fapshi',
+      },
+      card: {
+        enabled: true,
+        minVotes: 10,
+        pricePerVote: 150,
+        provider: 'camerpay',
+        feePercentage: 2.9,
+        feeFixed: 0.25,
+      },
+      currency: 'FCFA',
+    },
+    // System Shutdown
+    systemShutdown: {
+      enabled: false,
+      message: 'Le système est temporairement indisponible. Veuillez réessayer dans quelques minutes.',
+      title: '🔧 Système en cours de maintenance',
+      showTimer: false,
+      estimatedTime: '30 minutes',
+    },
+    // Winner Announcement
+    showWinners: false,
     countdown: {
-      enabled: true,
+      enabled: false,
       targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       title: 'Votez maintenant !',
       subtitle: 'Le concours se termine dans',
@@ -85,11 +119,22 @@ const AdminDashboard = () => {
       expiredMessage: 'Le vote est terminé !',
       redirectOnExpiry: false,
       redirectUrl: '/results'
-    }
+    },
+    votePackages: [
+      { votes: 1, label: '1 Vote', icon: 'Star', price: 100 },
+      { votes: 5, label: '5 Votes', icon: 'Sparkle', price: 500 },
+      { votes: 20, label: '20 Votes', icon: 'Zap', price: 2000 },
+      { votes: 50, label: '50 Votes', icon: 'Shield', price: 5000 },
+      { votes: 100, label: '100 Votes', icon: 'Trophy', price: 10000 }
+    ],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    updatedBy: auth.currentUser?.email || 'system'
   });
 
   const [editingSettings, setEditingSettings] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(true);
+  const [showShutdownPreview, setShowShutdownPreview] = useState(false);
   const navigate = useNavigate();
 
   const categories = ['Miss Fonakeukeu', 'Master Fonakeukeu'];
@@ -155,15 +200,33 @@ const AdminDashboard = () => {
             secondaryColor: '#1a1a1a',
             accentColor: '#f3d05f'
           },
-          votePackages: [
-            { votes: 1, label: '1 Vote', icon: 'Star', price: 100 },
-            { votes: 5, label: '5 Votes', icon: 'Sparkle', price: 500 },
-            { votes: 20, label: '20 Votes', icon: 'Zap', price: 2000 },
-            { votes: 50, label: '50 Votes', icon: 'Shield', price: 5000 },
-            { votes: 100, label: '100 Votes', icon: 'Trophy', price: 10000 }
-          ],
+          payment: {
+            mobileMoney: {
+              enabled: true,
+              minVotes: 1,
+              pricePerVote: 100,
+              provider: 'fapshi',
+            },
+            card: {
+              enabled: true,
+              minVotes: 10,
+              pricePerVote: 150,
+              provider: 'camerpay',
+              feePercentage: 2.9,
+              feeFixed: 0.25,
+            },
+            currency: 'FCFA',
+          },
+          systemShutdown: {
+            enabled: false,
+            message: 'Le système est temporairement indisponible. Veuillez réessayer dans quelques minutes.',
+            title: '🔧 Système en cours de maintenance',
+            showTimer: false,
+            estimatedTime: '30 minutes',
+          },
+          showWinners: false,
           countdown: {
-            enabled: true,
+            enabled: false,
             targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
             title: 'Votez maintenant !',
             subtitle: 'Le concours se termine dans',
@@ -173,6 +236,13 @@ const AdminDashboard = () => {
             redirectOnExpiry: false,
             redirectUrl: '/results'
           },
+          votePackages: [
+            { votes: 1, label: '1 Vote', icon: 'Star', price: 100 },
+            { votes: 5, label: '5 Votes', icon: 'Sparkle', price: 500 },
+            { votes: 20, label: '20 Votes', icon: 'Zap', price: 2000 },
+            { votes: 50, label: '50 Votes', icon: 'Shield', price: 5000 },
+            { votes: 100, label: '100 Votes', icon: 'Trophy', price: 10000 }
+          ],
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           updatedBy: auth.currentUser?.email || 'system'
@@ -198,14 +268,14 @@ const AdminDashboard = () => {
       const settingsDoc = await getDoc(settingsRef);
       
       if (settingsDoc.exists()) {
-        setSettings(prev => ({ ...prev, ...settingsDoc.data() }));
+        setSettings(settingsDoc.data());
         setSettingsLoading(false);
       } else {
         const created = await initializeSystemSettings();
         if (created) {
           const newDoc = await getDoc(settingsRef);
           if (newDoc.exists()) {
-            setSettings(prev => ({ ...prev, ...newDoc.data() }));
+            setSettings(newDoc.data());
           }
         }
         setSettingsLoading(false);
@@ -335,17 +405,6 @@ const AdminDashboard = () => {
     }));
   };
 
-  const handleCountdownChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setSettings(prev => ({
-      ...prev,
-      countdown: {
-        ...prev.countdown,
-        [name]: type === 'checkbox' ? checked : value
-      }
-    }));
-  };
-
   const handleThemeChange = (e) => {
     const { name, value } = e.target;
     setSettings(prev => ({
@@ -353,6 +412,31 @@ const AdminDashboard = () => {
       theme: {
         ...prev.theme,
         [name]: value
+      }
+    }));
+  };
+
+  const handlePaymentChange = (e, method, field) => {
+    const { value, type, checked } = e.target;
+    setSettings(prev => ({
+      ...prev,
+      payment: {
+        ...prev.payment,
+        [method]: {
+          ...prev.payment?.[method],
+          [field]: type === 'checkbox' ? checked : (type === 'number' ? parseFloat(value) || 0 : value)
+        }
+      }
+    }));
+  };
+
+  const handleShutdownChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setSettings(prev => ({
+      ...prev,
+      systemShutdown: {
+        ...prev.systemShutdown,
+        [name]: type === 'checkbox' ? checked : value
       }
     }));
   };
@@ -465,8 +549,19 @@ const AdminDashboard = () => {
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 flex-wrap"
           >
+            {/* 🏆 Winner Announcement Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/winners')}
+              className="px-4 py-2 bg-gradient-gold text-charcoal-900 rounded-xl text-sm font-medium flex items-center gap-2 shadow-lg shadow-gold-500/30 hover:shadow-gold-500/50 transition-all duration-300"
+            >
+              <Trophy className="w-4 h-4" />
+              🏆 Gagnants
+            </motion.button>
+            
             <button
               onClick={handleLogout}
               className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-sm font-medium flex items-center gap-2 transition-all duration-300"
@@ -475,31 +570,6 @@ const AdminDashboard = () => {
               Déconnexion
             </button>
           </motion.div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex overflow-x-auto gap-2 mb-6 scrollbar-hide pb-2">
-          {[
-            { id: 'candidates', icon: Users, label: 'Candidats' },
-            { id: 'settings', icon: Settings, label: 'Paramètres' },
-            { id: 'stats', icon: BarChart3, label: 'Statistiques' },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 px-4 py-2 rounded-xl transition-all duration-300 flex items-center gap-2 ${
-                  activeTab === tab.id
-                    ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
-                    : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-sm font-medium">{tab.label}</span>
-              </button>
-            );
-          })}
         </div>
 
         {/* Stats Overview */}
@@ -526,9 +596,71 @@ const AdminDashboard = () => {
           ))}
         </div>
 
+        {/* System Status Alert */}
+        {settings.systemShutdown?.enabled && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-400 animate-pulse" />
+              <div>
+                <p className="text-sm text-red-400 font-medium">⚠️ Système en arrêt d'urgence</p>
+                <p className="text-xs text-red-400/70">{settings.systemShutdown.message}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowShutdownPreview(true)}
+              className="px-3 py-1 bg-red-500/20 text-red-400 rounded-lg text-xs hover:bg-red-500/30 transition-all duration-300"
+            >
+              Voir l'aperçu
+            </button>
+          </div>
+        )}
+
+        {/* Winner Announcement Status */}
+        {settings.showWinners && (
+          <div className="bg-gold-500/10 border border-gold-500/30 rounded-2xl p-4 mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Trophy className="w-5 h-5 text-gold-400 animate-pulse" />
+              <div>
+                <p className="text-sm text-gold-400 font-medium">🎉 Gagnants annoncés!</p>
+                <p className="text-xs text-gold-400/70">Les utilisateurs voient la page de célébration</p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/winners')}
+              className="px-3 py-1 bg-gold-500/20 text-gold-400 rounded-lg text-xs hover:bg-gold-500/30 transition-all duration-300"
+            >
+              Voir la célébration
+            </button>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="flex overflow-x-auto gap-2 mb-6 scrollbar-hide pb-2">
+          {[
+            { id: 'candidates', icon: Users, label: 'Candidats' },
+            { id: 'settings', icon: Settings, label: 'Paramètres' },
+            { id: 'stats', icon: BarChart3, label: 'Statistiques' },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-shrink-0 px-4 py-2 rounded-xl transition-all duration-300 flex items-center gap-2 ${
+                  activeTab === tab.id
+                    ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
+                    : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="text-sm font-medium">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Tab Content */}
         <AnimatePresence mode="wait">
-          {/* Candidates Tab */}
           {activeTab === 'candidates' && (
             <motion.div
               key="candidates"
@@ -536,6 +668,7 @@ const AdminDashboard = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
             >
+              {/* Add Button */}
               <button
                 onClick={() => {
                   resetForm();
@@ -547,6 +680,7 @@ const AdminDashboard = () => {
                 Ajouter un Candidat
               </button>
 
+              {/* Candidates List */}
               {loading ? (
                 <div className="space-y-4">
                   {[...Array(3)].map((_, i) => (
@@ -564,6 +698,7 @@ const AdminDashboard = () => {
                       className="bg-white/5 backdrop-blur-xl rounded-2xl overflow-hidden border border-white/5"
                     >
                       <div className="flex items-center gap-4 p-4">
+                        {/* Image */}
                         <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-charcoal-800">
                           <img
                             src={candidate.image || 'https://via.placeholder.com/64x64/1a1a1a/d4a800?text=?'}
@@ -575,6 +710,7 @@ const AdminDashboard = () => {
                           />
                         </div>
                         
+                        {/* Info */}
                         <div className="flex-1 min-w-0">
                           <h3 className="text-sm font-semibold text-white truncate">
                             {candidate.name}
@@ -590,6 +726,7 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                         
+                        {/* Actions */}
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => openEditModal(candidate)}
@@ -620,7 +757,6 @@ const AdminDashboard = () => {
             </motion.div>
           )}
 
-          {/* Settings Tab */}
           {activeTab === 'settings' && (
             <motion.div
               key="settings"
@@ -641,7 +777,7 @@ const AdminDashboard = () => {
                           const settingsRef = doc(db, 'system', 'settings');
                           const newDoc = await getDoc(settingsRef);
                           if (newDoc.exists()) {
-                            setSettings(prev => ({ ...prev, ...newDoc.data() }));
+                            setSettings(newDoc.data());
                           }
                         }
                       }
@@ -670,6 +806,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
+              {/* Settings Form */}
               <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 border border-white/10 space-y-4">
                 {/* General Settings */}
                 <div>
@@ -700,28 +837,6 @@ const AdminDashboard = () => {
                         className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Prix par vote (FCFA)</label>
-                      <input
-                        type="number"
-                        name="votePrice"
-                        value={settings.votePrice}
-                        onChange={handleSettingsChange}
-                        disabled={!editingSettings}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Devise</label>
-                      <input
-                        type="text"
-                        name="currency"
-                        value={settings.currency}
-                        onChange={handleSettingsChange}
-                        disabled={!editingSettings}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
-                      />
-                    </div>
                   </div>
                 </div>
 
@@ -729,219 +844,321 @@ const AdminDashboard = () => {
                 <div className="border-t border-white/10 pt-4">
                   <h3 className="text-sm font-semibold text-gold-400 mb-3 flex items-center gap-2">
                     <CreditCard className="w-4 h-4" />
-                    Paiements
+                    Paramètres de paiement
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Méthode par défaut</label>
-                      <select
-                        name="defaultPaymentMethod"
-                        value={settings.defaultPaymentMethod}
-                        onChange={handleSettingsChange}
-                        disabled={!editingSettings}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
-                      >
-                        <option value="mtn_money">MTN Mobile Money</option>
-                        <option value="orange_money">Orange Money</option>
-                      </select>
+                  
+                  <div className="space-y-4">
+                    {/* Mobile Money Settings */}
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                      <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                        <Smartphone className="w-4 h-4 text-blue-400" />
+                        Mobile Money (Fapshi)
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/10">
+                          <span className="text-sm text-gray-400">Activer</span>
+                          <input
+                            type="checkbox"
+                            checked={settings.payment?.mobileMoney?.enabled !== false}
+                            onChange={(e) => handlePaymentChange(e, 'mobileMoney', 'enabled')}
+                            disabled={!editingSettings}
+                            className="w-5 h-5 rounded border-white/10 bg-white/5 text-gold-500 focus:ring-gold-500"
+                          />
+                        </label>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Prix / vote (FCFA)</label>
+                          <input
+                            type="number"
+                            value={settings.payment?.mobileMoney?.pricePerVote || 100}
+                            onChange={(e) => handlePaymentChange(e, 'mobileMoney', 'pricePerVote')}
+                            disabled={!editingSettings}
+                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Votes minimum</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={settings.payment?.mobileMoney?.minVotes || 1}
+                            onChange={(e) => handlePaymentChange(e, 'mobileMoney', 'minVotes')}
+                            disabled={!editingSettings}
+                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Méthodes activées</label>
-                      <div className="flex gap-3 mt-1">
-                        <label className="flex items-center gap-2 text-sm text-gray-400">
+
+                    {/* Card Payment Settings */}
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                      <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-gold-400" />
+                        Carte Bancaire (CamerPay)
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/10">
+                          <span className="text-sm text-gray-400">Activer</span>
                           <input
                             type="checkbox"
-                            checked={settings.paymentMethods?.includes('mtn_money')}
-                            onChange={(e) => {
-                              const methods = settings.paymentMethods || [];
-                              if (e.target.checked) {
-                                setSettings(prev => ({
-                                  ...prev,
-                                  paymentMethods: [...methods, 'mtn_money']
-                                }));
-                              } else {
-                                setSettings(prev => ({
-                                  ...prev,
-                                  paymentMethods: methods.filter(m => m !== 'mtn_money')
-                                }));
-                              }
-                            }}
+                            checked={settings.payment?.card?.enabled !== false}
+                            onChange={(e) => handlePaymentChange(e, 'card', 'enabled')}
                             disabled={!editingSettings}
-                            className="rounded border-white/10 bg-white/5 text-gold-500 focus:ring-gold-500"
+                            className="w-5 h-5 rounded border-white/10 bg-white/5 text-gold-500 focus:ring-gold-500"
                           />
-                          MTN
                         </label>
-                        <label className="flex items-center gap-2 text-sm text-gray-400">
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Prix / vote (FCFA)</label>
                           <input
-                            type="checkbox"
-                            checked={settings.paymentMethods?.includes('orange_money')}
-                            onChange={(e) => {
-                              const methods = settings.paymentMethods || [];
-                              if (e.target.checked) {
-                                setSettings(prev => ({
-                                  ...prev,
-                                  paymentMethods: [...methods, 'orange_money']
-                                }));
-                              } else {
-                                setSettings(prev => ({
-                                  ...prev,
-                                  paymentMethods: methods.filter(m => m !== 'orange_money')
-                                }));
-                              }
-                            }}
+                            type="number"
+                            value={settings.payment?.card?.pricePerVote || 150}
+                            onChange={(e) => handlePaymentChange(e, 'card', 'pricePerVote')}
                             disabled={!editingSettings}
-                            className="rounded border-white/10 bg-white/5 text-gold-500 focus:ring-gold-500"
+                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
                           />
-                          Orange
-                        </label>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Votes minimum</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={settings.payment?.card?.minVotes || 10}
+                            onChange={(e) => handlePaymentChange(e, 'card', 'minVotes')}
+                            disabled={!editingSettings}
+                            className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3 text-xs text-gray-500">
+                        <p>💳 Les frais de carte (2.9% + 0.25€) sont automatiquement ajoutés par CamerPay</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Countdown Settings */}
+                {/* System Shutdown Section */}
                 <div className="border-t border-white/10 pt-4">
-                  <h3 className="text-sm font-semibold text-gold-400 mb-3 flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    Compte à rebours
+                  <h3 className="text-sm font-semibold text-red-400 mb-3 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Arrêt d'urgence du système
                   </h3>
                   
-                  <div className="space-y-3">
-                    <label className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
-                      <span className="text-sm text-gray-400">Activer le compte à rebours</span>
-                      <input
-                        type="checkbox"
-                        checked={settings.countdown?.enabled || false}
-                        onChange={(e) => {
-                          setSettings(prev => ({
-                            ...prev,
-                            countdown: {
-                              ...prev.countdown,
-                              enabled: e.target.checked
-                            }
-                          }));
-                        }}
-                        disabled={!editingSettings}
-                        className="w-5 h-5 rounded border-white/10 bg-white/5 text-gold-500 focus:ring-gold-500"
-                      />
-                    </label>
-
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Date cible</label>
-                      <input
-                        type="datetime-local"
-                        value={settings.countdown?.targetDate ? new Date(settings.countdown.targetDate).toISOString().slice(0, 16) : ''}
-                        onChange={(e) => {
-                          setSettings(prev => ({
-                            ...prev,
-                            countdown: {
-                              ...prev.countdown,
-                              targetDate: new Date(e.target.value).toISOString()
-                            }
-                          }));
-                        }}
-                        disabled={!editingSettings}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Titre</label>
-                      <input
-                        type="text"
-                        value={settings.countdown?.title || ''}
-                        onChange={(e) => {
-                          setSettings(prev => ({
-                            ...prev,
-                            countdown: {
-                              ...prev.countdown,
-                              title: e.target.value
-                            }
-                          }));
-                        }}
-                        disabled={!editingSettings}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
-                        placeholder="Votez maintenant !"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Sous-titre</label>
-                      <input
-                        type="text"
-                        value={settings.countdown?.subtitle || ''}
-                        onChange={(e) => {
-                          setSettings(prev => ({
-                            ...prev,
-                            countdown: {
-                              ...prev.countdown,
-                              subtitle: e.target.value
-                            }
-                          }));
-                        }}
-                        disabled={!editingSettings}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
-                        placeholder="Le concours se termine dans"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Message de fin</label>
-                      <input
-                        type="text"
-                        value={settings.countdown?.expiredMessage || ''}
-                        onChange={(e) => {
-                          setSettings(prev => ({
-                            ...prev,
-                            countdown: {
-                              ...prev.countdown,
-                              expiredMessage: e.target.value
-                            }
-                          }));
-                        }}
-                        disabled={!editingSettings}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-gold-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
-                        placeholder="Le vote est terminé !"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
-                        <span className="text-sm text-gray-400">Afficher sur l'accueil</span>
+                  <div className="bg-red-500/5 rounded-xl p-4 border border-red-500/20">
+                    <div className="space-y-3">
+                      {/* Enable/Disable Shutdown */}
+                      <label className="flex items-center justify-between p-3 bg-red-500/5 rounded-lg border border-red-500/20">
+                        <div className="flex items-center gap-3">
+                          <AlertCircle className="w-5 h-5 text-red-400" />
+                          <div>
+                            <span className="text-sm font-medium text-white">Activer l'arrêt du système</span>
+                            <p className="text-xs text-gray-500">Les utilisateurs verront un message d'indisponibilité</p>
+                          </div>
+                        </div>
                         <input
                           type="checkbox"
-                          checked={settings.countdown?.showOnHomepage !== false}
+                          checked={settings.systemShutdown?.enabled || false}
                           onChange={(e) => {
                             setSettings(prev => ({
                               ...prev,
-                              countdown: {
-                                ...prev.countdown,
-                                showOnHomepage: e.target.checked
+                              systemShutdown: {
+                                ...prev.systemShutdown,
+                                enabled: e.target.checked
                               }
                             }));
                           }}
                           disabled={!editingSettings}
-                          className="w-5 h-5 rounded border-white/10 bg-white/5 text-gold-500 focus:ring-gold-500"
+                          className="w-5 h-5 rounded border-red-500/30 bg-red-500/10 text-red-500 focus:ring-red-500"
                         />
                       </label>
-                      <label className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
-                        <span className="text-sm text-gray-400">Afficher sur la page vote</span>
+
+                      {/* Shutdown Title */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Titre du message</label>
                         <input
-                          type="checkbox"
-                          checked={settings.countdown?.showOnVotingPage !== false}
+                          type="text"
+                          value={settings.systemShutdown?.title || '🔧 Système indisponible'}
                           onChange={(e) => {
                             setSettings(prev => ({
                               ...prev,
-                              countdown: {
-                                ...prev.countdown,
-                                showOnVotingPage: e.target.checked
+                              systemShutdown: {
+                                ...prev.systemShutdown,
+                                title: e.target.value
                               }
                             }));
                           }}
                           disabled={!editingSettings}
-                          className="w-5 h-5 rounded border-white/10 bg-white/5 text-gold-500 focus:ring-gold-500"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-red-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
+                          placeholder="Titre du message d'arrêt"
+                        />
+                      </div>
+
+                      {/* Shutdown Message */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Message personnalisé</label>
+                        <textarea
+                          value={settings.systemShutdown?.message || 'Le système est temporairement indisponible. Veuillez réessayer dans quelques minutes.'}
+                          onChange={(e) => {
+                            setSettings(prev => ({
+                              ...prev,
+                              systemShutdown: {
+                                ...prev.systemShutdown,
+                                message: e.target.value
+                              }
+                            }));
+                          }}
+                          disabled={!editingSettings}
+                          rows="3"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-red-500 focus:outline-none transition-all duration-300 disabled:opacity-50 resize-none"
+                          placeholder="Message personnalisé pour les utilisateurs..."
+                        />
+                      </div>
+
+                      {/* Estimated Time */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">
+                          Temps estimé (optionnel)
+                          <span className="text-gray-500 ml-1">- laissé vide pour ne pas afficher</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.systemShutdown?.estimatedTime || ''}
+                          onChange={(e) => {
+                            setSettings(prev => ({
+                              ...prev,
+                              systemShutdown: {
+                                ...prev.systemShutdown,
+                                estimatedTime: e.target.value
+                              }
+                            }));
+                          }}
+                          disabled={!editingSettings}
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:border-red-500 focus:outline-none transition-all duration-300 disabled:opacity-50"
+                          placeholder="Ex: 30 minutes, 1 heure, jusqu'à 18h"
+                        />
+                      </div>
+
+                      {/* Show Timer Toggle */}
+                      <label className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+                        <span className="text-sm text-gray-400">Afficher un compte à rebours</span>
+                        <input
+                          type="checkbox"
+                          checked={settings.systemShutdown?.showTimer || false}
+                          onChange={(e) => {
+                            setSettings(prev => ({
+                              ...prev,
+                              systemShutdown: {
+                                ...prev.systemShutdown,
+                                showTimer: e.target.checked
+                              }
+                            }));
+                          }}
+                          disabled={!editingSettings}
+                          className="w-5 h-5 rounded border-white/10 bg-white/5 text-red-500 focus:ring-red-500"
                         />
                       </label>
+
+                      {/* Preview Button */}
+                      {settings.systemShutdown?.enabled && (
+                        <button
+                          onClick={() => setShowShutdownPreview(true)}
+                          className="w-full py-2 bg-red-500/10 text-red-400 rounded-xl text-sm font-medium hover:bg-red-500/20 transition-all duration-300"
+                        >
+                          Voir l'aperçu du message
+                        </button>
+                      )}
+
+                      {/* Warning */}
+                      {settings.systemShutdown?.enabled && (
+                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3">
+                          <p className="text-red-400 text-xs flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4" />
+                            ⚠️ Le système est actuellement en arrêt. Les utilisateurs ne peuvent pas voter.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Winner Announcement Control */}
+                <div className="border-t border-white/10 pt-4">
+                  <h3 className="text-sm font-semibold text-gold-400 mb-3 flex items-center gap-2">
+                    <Trophy className="w-4 h-4" />
+                    Annonce des gagnants
+                  </h3>
+                  
+                  <div className="bg-gold-500/5 rounded-xl p-4 border border-gold-500/20">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-white font-medium">Afficher les gagnants</p>
+                          <p className="text-xs text-gray-500">Les utilisateurs verront la page de célébration</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const settingsRef = doc(db, 'system', 'settings');
+                                await setDoc(settingsRef, {
+                                  ...settings,
+                                  showWinners: true,
+                                  updatedAt: serverTimestamp(),
+                                  updatedBy: auth.currentUser?.email || 'admin'
+                                }, { merge: true });
+                                toast.success('🎉 Les gagnants sont maintenant visibles!');
+                                window.open('/winners', '_blank');
+                              } catch (error) {
+                                console.error('Error showing winners:', error);
+                                toast.error('Erreur lors de l\'affichage');
+                              }
+                            }}
+                            className="px-4 py-2 bg-gradient-gold text-charcoal-900 rounded-xl text-sm font-bold flex items-center gap-2 hover:shadow-lg hover:shadow-gold-500/30 transition-all duration-300"
+                          >
+                            <Trophy className="w-4 h-4" />
+                            🎉 Annoncer maintenant
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+                        <div>
+                          <p className="text-sm text-gray-400">Statut actuel</p>
+                          <p className={`text-xs font-medium ${settings.showWinners ? 'text-green-400' : 'text-gray-500'}`}>
+                            {settings.showWinners ? '✅ Gagnants visibles' : '⏳ En attente d\'annonce'}
+                          </p>
+                        </div>
+                        {settings.showWinners && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const settingsRef = doc(db, 'system', 'settings');
+                                await setDoc(settingsRef, {
+                                  ...settings,
+                                  showWinners: false,
+                                  updatedAt: serverTimestamp(),
+                                  updatedBy: auth.currentUser?.email || 'admin'
+                                }, { merge: true });
+                                toast.success('Annonce masquée');
+                                window.location.reload();
+                              } catch (error) {
+                                console.error('Error hiding winners:', error);
+                                toast.error('Erreur lors du masquage');
+                              }
+                            }}
+                            className="px-3 py-1 bg-red-500/10 text-red-400 rounded-lg text-xs hover:bg-red-500/20 transition-all duration-300"
+                          >
+                            Masquer
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                        <p className="text-yellow-400 text-xs flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          {settings.showWinners 
+                            ? '🎉 Les gagnants sont actuellement visibles sur le site' 
+                            : '📢 Cliquez sur "Annoncer maintenant" pour révéler les gagnants'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1048,7 +1265,6 @@ const AdminDashboard = () => {
             </motion.div>
           )}
 
-          {/* Stats Tab */}
           {activeTab === 'stats' && (
             <motion.div
               key="stats"
@@ -1088,7 +1304,7 @@ const AdminDashboard = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-400">Revenus estimés</span>
                         <span className="text-sm text-gold-400 font-bold">
-                          {stats.totalVotes * 100} FCFA
+                          {stats.totalVotes * 97} FCFA
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
@@ -1227,11 +1443,64 @@ const AdminDashboard = () => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Shutdown Preview Modal */}
+        <AnimatePresence>
+          {showShutdownPreview && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal-900/90 backdrop-blur-sm"
+              onClick={() => setShowShutdownPreview(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-gradient-to-b from-charcoal-800 to-charcoal-900 rounded-3xl max-w-md w-full p-8 border border-red-500/20 shadow-2xl shadow-red-500/10 text-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="w-20 h-20 mx-auto mb-6 relative">
+                  <div className="absolute inset-0 bg-red-500/20 rounded-full blur-2xl animate-pulse" />
+                  <div className="relative z-10 w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center border border-red-500/30">
+                    <AlertCircle className="w-10 h-10 text-red-400" />
+                  </div>
+                </div>
+
+                <h1 className="text-2xl font-display font-bold text-white mb-2">
+                  {settings.systemShutdown?.title || '🔧 Système indisponible'}
+                </h1>
+
+                <p className="text-gray-300 mb-6 leading-relaxed">
+                  {settings.systemShutdown?.message || 'Le système est temporairement indisponible. Veuillez réessayer dans quelques minutes.'}
+                </p>
+
+                {settings.systemShutdown?.estimatedTime && (
+                  <div className="bg-white/5 rounded-xl p-3 mb-4 border border-white/10">
+                    <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                      <Clock className="w-4 h-4" />
+                      <span>Disponible dans environ :</span>
+                      <span className="text-white font-semibold">
+                        {settings.systemShutdown.estimatedTime}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setShowShutdownPreview(false)}
+                  className="w-full bg-gradient-gold text-charcoal-900 py-3 rounded-xl font-bold hover:shadow-lg hover:shadow-gold-500/30 transition-all duration-300"
+                >
+                  Fermer l'aperçu
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
 };
-
-
 
 export default AdminDashboard;

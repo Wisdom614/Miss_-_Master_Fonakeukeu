@@ -29,33 +29,61 @@ const Voting = () => {
 
   const VOTES_PER_PAGE = 6;
 
-  // ✅ Card payment minimum
-  const CARD_MINIMUM_VOTES = 10;
-  const CARD_MINIMUM_AMOUNT = CARD_MINIMUM_VOTES * 100;
+  // ✅ Get payment settings from Firebase
+  const getPaymentSettings = () => {
+    const payment = settings?.payment || {};
+    
+    return {
+      mobileMoney: {
+        enabled: payment.mobileMoney?.enabled !== false,
+        minVotes: payment.mobileMoney?.minVotes || 1,
+        pricePerVote: payment.mobileMoney?.pricePerVote || 100,
+      },
+      card: {
+        enabled: payment.card?.enabled !== false,
+        minVotes: payment.card?.minVotes || 10,
+        pricePerVote: payment.card?.pricePerVote || 150,
+      },
+    };
+  };
 
-  // Payment methods
-  const PAYMENT_METHODS = [
-    { 
-      id: 'mobile_money', 
-      label: 'Mobile Money', 
-      icon: SmartphoneIcon,
-      description: 'MTN / Orange',
-      color: 'from-blue-500/20 to-blue-600/10',
-      borderColor: 'border-blue-500/30',
-      textColor: 'text-blue-400',
-      activeColor: 'border-blue-500 bg-blue-500/10 text-blue-400 shadow-lg shadow-blue-500/20'
-    },
-    { 
-      id: 'card', 
-      label: 'Carte Bancaire', 
-      icon: CreditCard,
-      description: 'Visa / Mastercard',
-      color: 'from-gold-500/20 to-gold-600/10',
-      borderColor: 'border-gold-500/30',
-      textColor: 'text-gold-400',
-      activeColor: 'border-gold-500 bg-gold-500/10 text-gold-400 shadow-lg shadow-gold-500/20'
-    },
-  ];
+  const paymentSettings = getPaymentSettings();
+
+  // ✅ Get available payment methods
+  const getAvailablePaymentMethods = () => {
+    const methods = [];
+    if (paymentSettings.mobileMoney.enabled) {
+      methods.push({
+        id: 'mobile_money',
+        label: 'Mobile Money',
+        icon: SmartphoneIcon,
+        description: 'MTN / Orange',
+        pricePerVote: paymentSettings.mobileMoney.pricePerVote,
+        minVotes: paymentSettings.mobileMoney.minVotes,
+        color: 'from-blue-500/20 to-blue-600/10',
+        borderColor: 'border-blue-500/30',
+        textColor: 'text-blue-400',
+        activeColor: 'border-blue-500 bg-blue-500/10 text-blue-400 shadow-lg shadow-blue-500/20'
+      });
+    }
+    if (paymentSettings.card.enabled) {
+      methods.push({
+        id: 'card',
+        label: 'Carte Bancaire',
+        icon: CreditCard,
+        description: 'Visa / Mastercard',
+        pricePerVote: paymentSettings.card.pricePerVote,
+        minVotes: paymentSettings.card.minVotes,
+        color: 'from-gold-500/20 to-gold-600/10',
+        borderColor: 'border-gold-500/30',
+        textColor: 'text-gold-400',
+        activeColor: 'border-gold-500 bg-gold-500/10 text-gold-400 shadow-lg shadow-gold-500/20'
+      });
+    }
+    return methods;
+  };
+
+  const availablePaymentMethods = getAvailablePaymentMethods();
 
   useEffect(() => {
     fetchCandidates();
@@ -119,122 +147,131 @@ const Voting = () => {
   const handleVoteClick = (candidate) => {
     setSelectedCandidate(candidate);
     setCustomVotes(1);
-    setPaymentMethod('mobile_money');
+    setPaymentMethod(availablePaymentMethods.length > 0 ? availablePaymentMethods[0].id : 'mobile_money');
     setShowVoteModal(true);
   };
 
-  // ✅ Handle payment method change with auto vote adjustment
-  const handlePaymentMethodChange = (method) => {
-    setPaymentMethod(method);
-    if (method === 'card' && customVotes < CARD_MINIMUM_VOTES) {
-      setCustomVotes(CARD_MINIMUM_VOTES);
+  const handlePaymentMethodChange = (methodId) => {
+    setPaymentMethod(methodId);
+    const method = availablePaymentMethods.find(m => m.id === methodId);
+    if (method && customVotes < method.minVotes) {
+      setCustomVotes(method.minVotes);
     }
   };
 
   const handleVoteConfirm = async () => {
-  if (!selectedCandidate) {
-    toast.error('Veuillez sélectionner un candidat');
-    return;
-  }
-
-  let voteCount = parseInt(customVotes) || 1;
-  
-  // ✅ Auto-adjust for card minimum
-  if (paymentMethod === 'card' && voteCount < CARD_MINIMUM_VOTES) {
-    voteCount = CARD_MINIMUM_VOTES;
-    setCustomVotes(CARD_MINIMUM_VOTES);
-    toast.info(`Minimum ${CARD_MINIMUM_VOTES} votes requis pour la carte. Ajusté automatiquement.`);
-  }
-
-  if (voteCount < 1) {
-    toast.error('Minimum 1 vote');
-    return;
-  }
-
-  setProcessing(true);
-  try {
-    // ✅ Choose worker based on payment method
-    let workerUrl, endpoint;
-    
-    if (paymentMethod === 'card') {
-      workerUrl = import.meta.env.VITE_CAMERPAY_WORKER_URL;
-      endpoint = '/create-card-payment';
-      console.log('💳 Using CamerPay for card payment');
-    } else {
-      workerUrl = import.meta.env.VITE_FAPSHI_WORKER_URL;
-      endpoint = '/create-payment';
-      console.log('📱 Using Fapshi for mobile money');
-    }
-    
-    console.log('📊 Confirming vote:', {
-      amount: voteCount * 100,
-      votes: voteCount,
-      candidateId: selectedCandidate.id,
-      candidateName: selectedCandidate.name,
-      paymentMethod: paymentMethod
-    });
-    
-    const response = await fetch(`${workerUrl}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount: voteCount * 100,
-        candidateId: selectedCandidate.id,
-        candidateName: selectedCandidate.name,
-        votes: voteCount,
-        email: 'anonymous@voter.com',
-        phone: '699123456',
-        payment_method: paymentMethod,
-      })
-    });
-
-    const data = await response.json();
-    console.log('📦 Payment response:', data);
-    
-    // ✅ Check for specific error codes and show friendly messages
-    if (data.status === 520 || (data.error && data.error.includes('520'))) {
-      setShowVoteModal(false);
-      toast.error('🔧 Le service de paiement par carte est temporairement indisponible. Veuillez réessayer dans quelques minutes ou utiliser Mobile Money.');
-      setProcessing(false);
+    if (!selectedCandidate) {
+      toast.error('Veuillez sélectionner un candidat');
       return;
     }
+
+    const selectedMethod = availablePaymentMethods.find(m => m.id === paymentMethod);
+    if (!selectedMethod) {
+      toast.error('Méthode de paiement non disponible');
+      return;
+    }
+
+    let voteCount = parseInt(customVotes) || 1;
     
-    if (data.paymentUrl) {
-      // ✅ Store ALL data in session storage
-      sessionStorage.setItem('pendingVote', data.invoiceId);
-      sessionStorage.setItem('pendingCandidate', selectedCandidate.id);
-      sessionStorage.setItem('pendingCandidateName', selectedCandidate.name);
-      sessionStorage.setItem('pendingVotesCount', String(voteCount));
-      sessionStorage.setItem('paymentMethod', paymentMethod);
+    // ✅ Auto-adjust for minimum votes
+    if (voteCount < selectedMethod.minVotes) {
+      voteCount = selectedMethod.minVotes;
+      setCustomVotes(selectedMethod.minVotes);
+      toast.info(`Minimum ${selectedMethod.minVotes} votes requis pour ${selectedMethod.label}. Ajusté automatiquement.`);
+    }
+
+    if (voteCount < 1) {
+      toast.error('Minimum 1 vote');
+      return;
+    }
+
+    const totalAmount = voteCount * selectedMethod.pricePerVote;
+
+    setProcessing(true);
+    try {
+      // ✅ Choose worker based on payment method
+      let workerUrl, endpoint;
       
-      console.log('💾 Stored pending data:', {
-        invoiceId: data.invoiceId,
+      if (paymentMethod === 'card') {
+        workerUrl = import.meta.env.VITE_CAMERPAY_WORKER_URL;
+        endpoint = '/create-card-payment';
+        console.log('💳 Using CamerPay for card payment');
+      } else {
+        workerUrl = import.meta.env.VITE_FAPSHI_WORKER_URL;
+        endpoint = '/create-payment';
+        console.log('📱 Using Fapshi for mobile money');
+      }
+      
+      console.log('📊 Confirming vote:', {
+        amount: totalAmount,
+        votes: voteCount,
+        pricePerVote: selectedMethod.pricePerVote,
         candidateId: selectedCandidate.id,
         candidateName: selectedCandidate.name,
-        votes: voteCount,
         paymentMethod: paymentMethod
       });
       
-      setShowVoteModal(false);
-      window.location.href = data.paymentUrl;
-    } else {
-      toast.error(data.message || 'Erreur de création du paiement');
+      const response = await fetch(`${workerUrl}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: totalAmount,
+          candidateId: selectedCandidate.id,
+          candidateName: selectedCandidate.name,
+          votes: voteCount,
+          email: 'anonymous@voter.com',
+          phone: '699123456',
+          payment_method: paymentMethod,
+        })
+      });
+
+      const data = await response.json();
+      console.log('📦 Payment response:', data);
+      
+      if (data.status === 520 || (data.error && data.error.includes('520'))) {
+        setShowVoteModal(false);
+        toast.error('🔧 Le service de paiement par carte est temporairement indisponible. Veuillez réessayer dans quelques minutes ou utiliser Mobile Money.');
+        setProcessing(false);
+        return;
+      }
+      
+      if (data.paymentUrl) {
+        // ✅ Store ALL data in session storage
+        sessionStorage.setItem('pendingVote', data.invoiceId);
+        sessionStorage.setItem('pendingCandidate', selectedCandidate.id);
+        sessionStorage.setItem('pendingCandidateName', selectedCandidate.name);
+        sessionStorage.setItem('pendingVotesCount', String(voteCount));
+        sessionStorage.setItem('paymentMethod', paymentMethod);
+        sessionStorage.setItem('pricePerVote', String(selectedMethod.pricePerVote));
+        
+        console.log('💾 Stored pending data:', {
+          invoiceId: data.invoiceId,
+          candidateId: selectedCandidate.id,
+          candidateName: selectedCandidate.name,
+          votes: voteCount,
+          paymentMethod: paymentMethod,
+          pricePerVote: selectedMethod.pricePerVote
+        });
+        
+        setShowVoteModal(false);
+        window.location.href = data.paymentUrl;
+      } else {
+        toast.error(data.message || 'Erreur de création du paiement');
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      
+      if (error.message === 'Failed to fetch' || error.message.includes('network')) {
+        toast.error('🔧 Problème de connexion au service de paiement. Veuillez réessayer.');
+      } else if (error.message && error.message.includes('520')) {
+        toast.error('🔧 Le service de paiement par carte est temporairement indisponible. Veuillez réessayer dans quelques minutes.');
+      } else {
+        toast.error('Erreur de connexion au service de paiement. Veuillez réessayer.');
+      }
+    } finally {
+      setProcessing(false);
     }
-  } catch (error) {
-    console.error('Payment error:', error);
-    
-    // ✅ Handle network errors gracefully
-    if (error.message === 'Failed to fetch' || error.message.includes('network')) {
-      toast.error('🔧 Problème de connexion au service de paiement. Veuillez réessayer.');
-    } else if (error.message && error.message.includes('520')) {
-      toast.error('🔧 Le service de paiement par carte est temporairement indisponible. Veuillez réessayer dans quelques minutes.');
-    } else {
-      toast.error('Erreur de connexion au service de paiement. Veuillez réessayer.');
-    }
-  } finally {
-    setProcessing(false);
-  }
-};
+  };
 
   const toggleDescription = (candidateId) => {
     setExpandedDescriptions(prev => ({
@@ -271,6 +308,9 @@ const Voting = () => {
     return Users;
   };
 
+  // Get current payment method details
+  const currentPaymentMethod = availablePaymentMethods.find(m => m.id === paymentMethod) || availablePaymentMethods[0];
+
   return (
     <div className="min-h-screen pt-16 pb-24 px-4 max-w-7xl mx-auto">
       {/* Header with Decoration */}
@@ -290,7 +330,14 @@ const Voting = () => {
               <Diamond className="w-6 h-6 text-gold-400" />
             </div>
             <p className="text-sm text-gray-400 ml-2">
-              {candidates.length} candidats en lice • 100 FCFA/vote
+              {candidates.length} candidats en lice • 
+              {currentPaymentMethod ? (
+                <span className="text-gold-400 ml-1">
+                  {currentPaymentMethod.pricePerVote} FCFA/vote ({currentPaymentMethod.label})
+                </span>
+              ) : (
+                <span className="text-gold-400 ml-1">100 FCFA/vote</span>
+              )}
             </p>
           </div>
           <button
@@ -520,9 +567,9 @@ const Voting = () => {
         </div>
       )}
 
-      {/* Vote Modal - With Professional Icons */}
+      {/* Vote Modal - With Dynamic Payment Methods */}
       <AnimatePresence>
-        {showVoteModal && selectedCandidate && (
+        {showVoteModal && selectedCandidate && availablePaymentMethods.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -570,15 +617,16 @@ const Voting = () => {
                 <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gold-500/50 to-transparent" />
               </div>
 
-              {/* ✅ Payment Method Selection - Professional Icons */}
+              {/* ✅ Dynamic Payment Method Selection */}
               <div className="mb-6">
                 <label className="block text-sm text-gray-400 mb-2">
                   Méthode de paiement
                 </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {PAYMENT_METHODS.map((method) => {
+                <div className={`grid gap-3 ${availablePaymentMethods.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                  {availablePaymentMethods.map((method) => {
                     const Icon = method.icon;
                     const isActive = paymentMethod === method.id;
+                    const priceDisplay = method.pricePerVote;
                     return (
                       <button
                         key={method.id}
@@ -594,6 +642,7 @@ const Voting = () => {
                           {method.label}
                         </span>
                         <span className="text-[10px] text-gray-500">{method.description}</span>
+                        <span className="text-[10px] text-gold-400">{priceDisplay} FCFA/vote</span>
                       </button>
                     );
                   })}
@@ -603,35 +652,35 @@ const Voting = () => {
               {/* Vote Input */}
               <div className="mb-4">
                 <label className="block text-sm text-gray-400 mb-2">
-                  Nombre de votes
+                  Nombre de votes (min: {currentPaymentMethod?.minVotes || 1})
                 </label>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => setCustomVotes(Math.max(1, customVotes - 1))}
+                    onClick={() => setCustomVotes(Math.max(currentPaymentMethod?.minVotes || 1, customVotes - 1))}
                     className="w-12 h-12 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 flex items-center justify-center border border-white/10 hover:border-gold-500/50"
                   >
                     <Minus className="w-5 h-5 text-gray-400" />
                   </button>
                   <input
                     type="number"
-                    min="1"
+                    min={currentPaymentMethod?.minVotes || 1}
                     max="1000"
                     value={customVotes}
                     onChange={(e) => {
                       const val = parseInt(e.target.value);
                       if (e.target.value === '') {
                         setCustomVotes('');
-                      } else if (!isNaN(val) && val >= 0) {
+                      } else if (!isNaN(val) && val >= (currentPaymentMethod?.minVotes || 1)) {
                         setCustomVotes(val);
                       }
                     }}
                     onBlur={() => {
-                      if (customVotes === '' || customVotes < 1) {
-                        setCustomVotes(1);
+                      if (customVotes === '' || customVotes < (currentPaymentMethod?.minVotes || 1)) {
+                        setCustomVotes(currentPaymentMethod?.minVotes || 1);
                       }
                     }}
                     className="flex-1 text-center text-3xl font-bold text-white bg-white/5 border border-white/10 rounded-xl py-3 focus:border-gold-500 focus:outline-none transition-all duration-300"
-                    placeholder="1"
+                    placeholder={String(currentPaymentMethod?.minVotes || 1)}
                   />
                   <button
                     onClick={() => setCustomVotes(Math.min(1000, customVotes + 1))}
@@ -641,33 +690,26 @@ const Voting = () => {
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-2 text-center">
-                  Minimum 1 • Maximum 1000
+                  Minimum {currentPaymentMethod?.minVotes || 1} • Maximum 1000
                 </p>
               </div>
-
-              {/* ✅ Card Minimum Notice */}
-              {paymentMethod === 'card' && (
-                <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 mb-4">
-                  <p className="text-blue-400 text-xs text-center flex items-center justify-center gap-2">
-                    <CreditCard className="w-4 h-4" />
-                    Minimum <strong>{CARD_MINIMUM_VOTES} votes</strong> ({CARD_MINIMUM_AMOUNT} FCFA) pour les paiements par carte
-                  </p>
-                </div>
-              )}
 
               {/* Quick Amount Buttons */}
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {[5, 10, 25, 50].map((amount) => (
                   <button
                     key={amount}
-                    onClick={() => setCustomVotes(amount)}
+                    onClick={() => {
+                      const minVotes = currentPaymentMethod?.minVotes || 1;
+                      setCustomVotes(Math.max(minVotes, amount));
+                    }}
                     className={`py-2 rounded-xl border-2 transition-all duration-300 text-center ${
-                      customVotes === amount
+                      customVotes === Math.max(currentPaymentMethod?.minVotes || 1, amount)
                         ? 'border-gold-500 bg-gold-500/10 text-gold-400'
                         : 'border-white/10 hover:border-gold-500/50 text-gray-400'
                     }`}
                   >
-                    <span className="text-sm font-medium">{amount}</span>
+                    <span className="text-sm font-medium">{Math.max(currentPaymentMethod?.minVotes || 1, amount)}</span>
                   </button>
                 ))}
               </div>
@@ -676,7 +718,7 @@ const Voting = () => {
               <div className="flex items-center justify-between mb-4 p-3 bg-gold-500/10 rounded-xl border border-gold-500/30">
                 <span className="text-gray-300">Total à payer</span>
                 <span className="text-xl font-bold text-gold-400">
-                  {customVotes * 100} FCFA
+                  {customVotes * (currentPaymentMethod?.pricePerVote || 100)} FCFA
                 </span>
               </div>
 
@@ -717,6 +759,18 @@ const Voting = () => {
                   </>
                 )}
               </button>
+
+              {/* Payment Info */}
+              <div className="mt-3 text-center">
+                <p className="text-[10px] text-gray-500">
+                  {paymentMethod === 'card' && (
+                    <>💳 Frais de carte: 2.9% + 0.25€ (ajoutés par CamerPay)</>
+                  )}
+                  {paymentMethod === 'mobile_money' && (
+                    <>📱 Paiement sécurisé via Fapshi</>
+                  )}
+                </p>
+              </div>
             </motion.div>
           </motion.div>
         )}
