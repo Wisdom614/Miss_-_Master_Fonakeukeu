@@ -312,12 +312,15 @@ const Voting = () => {
   const currentPaymentMethod = availablePaymentMethods.find(m => m.id === paymentMethod) || availablePaymentMethods[0];
 
   return (
-    <div className="min-h-screen pt-16 pb-24 px-4 max-w-7xl mx-auto">
+    <div className="voting-page min-h-screen pt-24 pb-24 px-4 sm:px-6">
+      <div className="voting-orb voting-orb--left" />
+      <div className="voting-orb voting-orb--right" />
+      <div className="relative mx-auto max-w-7xl">
       {/* Header with Decoration */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="py-6 mb-4"
+        className="voting-hero mb-6"
       >
         <div className="flex items-center justify-between">
           <div>
@@ -356,11 +359,11 @@ const Voting = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="flex gap-3 mb-8 overflow-x-auto scrollbar-hide pb-2"
+        className="voting-filters mb-8"
       >
         <button
           onClick={() => { setActiveCategory('all'); setCurrentPage(0); }}
-          className={`flex-shrink-0 px-6 py-3 rounded-xl border-2 transition-all duration-300 flex items-center gap-2 ${
+          className={`voting-filter ${
             activeCategory === 'all'
               ? 'border-gold-500 bg-gradient-to-r from-gold-500/20 to-gold-600/10 text-gold-400 shadow-lg shadow-gold-500/20'
               : 'border-white/10 bg-white/5 text-gray-400 hover:border-gold-500/50'
@@ -375,7 +378,7 @@ const Voting = () => {
 
         <button
           onClick={() => { setActiveCategory('miss'); setCurrentPage(0); }}
-          className={`flex-shrink-0 px-6 py-3 rounded-xl border-2 transition-all duration-300 flex items-center gap-2 ${
+          className={`voting-filter ${
             activeCategory === 'miss'
               ? 'border-pink-500 bg-gradient-to-r from-pink-500/20 to-pink-600/10 text-pink-400 shadow-lg shadow-pink-500/20'
               : 'border-white/10 bg-white/5 text-gray-400 hover:border-pink-500/50'
@@ -390,7 +393,7 @@ const Voting = () => {
 
         <button
           onClick={() => { setActiveCategory('master'); setCurrentPage(0); }}
-          className={`flex-shrink-0 px-6 py-3 rounded-xl border-2 transition-all duration-300 flex items-center gap-2 ${
+          className={`voting-filter ${
             activeCategory === 'master'
               ? 'border-blue-500 bg-gradient-to-r from-blue-500/20 to-blue-600/10 text-blue-400 shadow-lg shadow-blue-500/20'
               : 'border-white/10 bg-white/5 text-gray-400 hover:border-blue-500/50'
@@ -406,7 +409,7 @@ const Voting = () => {
 
       {/* Candidates Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="bg-white/5 rounded-2xl animate-pulse h-[450px]" />
           ))}
@@ -416,7 +419,7 @@ const Voting = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-6"
           >
             <AnimatePresence>
               {paginatedCandidates.map((candidate, index) => {
@@ -440,7 +443,7 @@ const Voting = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ delay: index * 0.08 }}
-                    className="group relative bg-gradient-to-b from-white/5 to-white/0 backdrop-blur-xl rounded-2xl overflow-hidden border border-white/10 hover:border-gold-500/50 transition-all duration-500 hover:shadow-2xl hover:shadow-gold-500/10"
+                    className="voting-candidate-card group relative overflow-hidden"
                   >
                     {/* Decorative Corner Elements */}
                     <div className="absolute top-0 left-0 w-20 h-20 border-t-2 border-l-2 border-gold-500/20 rounded-tl-2xl z-10" />
@@ -452,7 +455,7 @@ const Voting = () => {
                     </div>
                     
                     {/* Image Container */}
-                    <div className="relative h-80 md:h-[420px] overflow-hidden bg-charcoal-800">
+                    <div className="voting-candidate-card__image relative overflow-hidden bg-charcoal-800">
                       <img
                         src={candidate.image || 'https://via.placeholder.com/600x450/1a1a1a/d4a800?text=?'}
                         alt={candidate.name}
@@ -493,7 +496,7 @@ const Voting = () => {
                     </div>
 
                     {/* Content */}
-                    <div className="p-5 relative">
+                    <div className="voting-candidate-card__content relative p-5">
                       {/* Small decorative line */}
                       <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 bg-gradient-gold rounded-full" />
                       
@@ -519,7 +522,7 @@ const Voting = () => {
                       
                       <button
                         onClick={() => handleVoteClick(candidate)}
-                        className="w-full mt-4 relative overflow-hidden bg-gradient-gold text-charcoal-900 py-3.5 rounded-xl font-bold transition-all duration-300 hover:shadow-lg hover:shadow-gold-500/30 group/btn"
+                        className="voting-candidate-card__button w-full mt-4 relative overflow-hidden py-3.5 font-bold transition-all duration-300 group/btn"
                       >
                         <span className="relative z-10 flex items-center justify-center gap-2">
                           <StarIcon className="w-4 h-4" />
@@ -537,7 +540,7 @@ const Voting = () => {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-8">
+            <div className="voting-pagination flex justify-center items-center gap-2 mt-9">
               <button
                 onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
                 disabled={currentPage === 0}
@@ -581,7 +584,7 @@ const Voting = () => {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-gradient-to-b from-charcoal-800 to-charcoal-900 rounded-3xl max-w-md w-full p-6 border border-gold-500/20 max-h-[90vh] overflow-y-auto shadow-2xl shadow-gold-500/10"
+              className="voting-modal max-h-[90vh] w-full max-w-md overflow-y-auto p-6"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
@@ -741,7 +744,7 @@ const Voting = () => {
               <button
                 onClick={handleVoteConfirm}
                 disabled={processing}
-                className="w-full bg-gradient-gold text-charcoal-900 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-gold-500/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="voting-modal__confirm w-full py-3 font-bold flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {processing ? (
                   <>
@@ -775,6 +778,7 @@ const Voting = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 };

@@ -49,7 +49,7 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.9, y: 20 }}
-            className="bg-charcoal-800 rounded-2xl max-w-md w-full p-8 border border-white/10"
+            className="lux-card rounded-2xl max-w-md w-full p-8"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-6">

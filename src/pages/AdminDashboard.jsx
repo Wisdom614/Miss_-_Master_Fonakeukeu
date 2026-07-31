@@ -523,10 +523,10 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen pt-16 pb-12 bg-gradient-dark">
+    <div className="admin-page min-h-screen pt-20 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div className="admin-header flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -585,7 +585,7 @@ const AdminDashboard = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={`${stat.bg} rounded-2xl p-4 border border-white/5`}
+              className={`admin-stat ${stat.bg} rounded-2xl p-4 border border-white/5`}
             >
               <div className="flex items-center justify-between">
                 <stat.icon className={`w-5 h-5 ${stat.color}`} />
@@ -635,7 +635,7 @@ const AdminDashboard = () => {
         )}
 
         {/* Tabs */}
-        <div className="flex overflow-x-auto gap-2 mb-6 scrollbar-hide pb-2">
+        <div className="admin-navigation flex overflow-x-auto gap-2 mb-6 scrollbar-hide pb-2">
           {[
             { id: 'candidates', icon: Users, label: 'Candidats' },
             { id: 'settings', icon: Settings, label: 'Paramètres' },
@@ -646,7 +646,7 @@ const AdminDashboard = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 px-4 py-2 rounded-xl transition-all duration-300 flex items-center gap-2 ${
+                className={`admin-navigation__item flex-shrink-0 px-4 py-2 rounded-xl transition-all duration-300 flex items-center gap-2 ${
                   activeTab === tab.id
                     ? 'bg-gold-500/20 text-gold-400 border border-gold-500/30'
                     : 'bg-white/5 text-gray-400 hover:bg-white/10'
@@ -674,7 +674,7 @@ const AdminDashboard = () => {
                   resetForm();
                   setShowModal(true);
                 }}
-                className="w-full bg-gradient-gold text-charcoal-900 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 mb-4 shadow-lg shadow-gold-500/20"
+                className="admin-primary-action w-full bg-gradient-gold text-charcoal-900 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 mb-4 shadow-lg shadow-gold-500/20"
               >
                 <UserPlus className="w-5 h-5" />
                 Ajouter un Candidat
@@ -695,7 +695,7 @@ const AdminDashboard = () => {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="bg-white/5 backdrop-blur-xl rounded-2xl overflow-hidden border border-white/5"
+                      className="admin-candidate-row bg-white/5 backdrop-blur-xl rounded-2xl overflow-hidden border border-white/5"
                     >
                       <div className="flex items-center gap-4 p-4">
                         {/* Image */}

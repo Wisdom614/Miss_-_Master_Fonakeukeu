@@ -1,338 +1,63 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { collection, query, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { 
-  Crown, TrendingUp, Medal, Star, Users, User, UserCheck, RefreshCw,
-  Trophy, Sparkles, Diamond, ChevronLeft, ChevronRight
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { collection, doc, getDoc, onSnapshot, query } from 'firebase/firestore';
+import { Crown, ChevronLeft, ChevronRight, RefreshCw, Star, Trophy, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { db } from '../firebase/config';
+
+const ITEMS_PER_PAGE = 10;
+const fallbackImage = 'https://via.placeholder.com/160x160/17251e/e8c56a?text=?';
 
 const Results = () => {
   const [candidates, setCandidates] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [totalVotes, setTotalVotes] = useState(0);
   const [settings, setSettings] = useState(null);
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('all');
   const [currentPage, setCurrentPage] = useState(0);
-  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
-    loadSettings();
-
-    const q = query(collection(db, 'candidates'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const candidatesData = [];
-      let total = 0;
-      snapshot.forEach(doc => {
-        const data = { id: doc.id, ...doc.data() };
-        candidatesData.push(data);
-        total += data.votes || 0;
-      });
-      candidatesData.sort((a, b) => (b.votes || 0) - (a.votes || 0));
-      setCandidates(candidatesData);
-      setTotalVotes(total);
-      setLoading(false);
-      setRefreshing(false);
-    }, (error) => {
-      console.error('Error in real-time listener:', error);
-      setLoading(false);
-      setRefreshing(false);
-    });
-
-    return () => unsubscribe();
+    getDoc(doc(db, 'system', 'settings')).then((snapshot) => { if (snapshot.exists()) setSettings(snapshot.data()); }).catch((error) => console.error('Error loading settings:', error));
+    const unsubscribe = onSnapshot(query(collection(db, 'candidates')), (snapshot) => {
+      const data = snapshot.docs.map((candidate) => ({ id: candidate.id, ...candidate.data() })).sort((a, b) => (b.votes || 0) - (a.votes || 0));
+      setCandidates(data); setLoading(false); setRefreshing(false);
+    }, (error) => { console.error('Error loading results:', error); setLoading(false); setRefreshing(false); });
+    return unsubscribe;
   }, []);
 
-  const loadSettings = async () => {
-    try {
-      const settingsRef = doc(db, 'system', 'settings');
-      const settingsDoc = await getDoc(settingsRef);
-      if (settingsDoc.exists()) {
-        setSettings(settingsDoc.data());
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-  };
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    toast.loading('Rafraîchissement...');
-    window.location.reload();
-  };
-
-  const getMedal = (index) => {
-    if (index === 0) return '🥇';
-    if (index === 1) return '🥈';
-    if (index === 2) return '🥉';
-    return `#${index + 1}`;
-  };
-
-  const getMedalColor = (index) => {
-    if (index === 0) return 'text-yellow-400';
-    if (index === 1) return 'text-gray-300';
-    if (index === 2) return 'text-amber-600';
-    return 'text-gray-500';
-  };
-
+  const totalVotes = candidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
+  const categories = { all: candidates, miss: candidates.filter((candidate) => candidate.category?.includes('Miss')), master: candidates.filter((candidate) => candidate.category?.includes('Master')) };
+  const displayed = categories[activeCategory];
+  const totalPages = Math.ceil(displayed.length / ITEMS_PER_PAGE);
+  const rows = displayed.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
+  const percentage = (votes) => totalVotes ? (votes / totalVotes) * 100 : 0;
+  const changeCategory = (category) => { setActiveCategory(category); setCurrentPage(0); };
+  const refresh = () => { setRefreshing(true); toast.success('Classement actualisé'); setTimeout(() => setRefreshing(false), 450); };
   const siteName = settings?.siteName || 'Miss & Master Fonakeukeu';
-  const editionYear = settings?.editionYear || '2026';
-
-  // Filter candidates by category
-  const missCandidates = candidates.filter(c => c.category?.includes('Miss'));
-  const masterCandidates = candidates.filter(c => c.category?.includes('Master'));
-  
-  const getDisplayedCandidates = () => {
-    if (activeCategory === 'miss') return missCandidates;
-    if (activeCategory === 'master') return masterCandidates;
-    return candidates;
-  };
-
-  const displayedCandidates = getDisplayedCandidates();
-  const totalPages = Math.ceil(displayedCandidates.length / ITEMS_PER_PAGE);
-  const paginatedCandidates = displayedCandidates.slice(
-    currentPage * ITEMS_PER_PAGE,
-    (currentPage + 1) * ITEMS_PER_PAGE
-  );
-
-  // Calculate percentage with 2 decimal places
-  const getPercentage = (votes) => {
-    if (totalVotes === 0) return 0;
-    return ((votes / totalVotes) * 100);
-  };
 
   return (
-    <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-8"
-      >
-        <div className="flex items-center justify-center gap-4 mb-4">
-          <h1 className="font-display text-3xl md:text-5xl font-bold text-white">
-            Classement en
-            <span className="text-transparent bg-gradient-to-r from-yellow-300 via-gold-400 to-yellow-500 bg-clip-text drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-              {' '}Direct
-            </span>
-          </h1>
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 disabled:opacity-50"
-            title="Rafraîchir"
-          >
-            <RefreshCw className={`w-5 h-5 text-gray-400 ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
+    <main className="min-h-screen bg-[#101713] pb-20">
+      <section className="border-b border-gold-500/15 bg-[radial-gradient(circle_at_50%_-20%,rgba(212,168,0,.2),transparent_31rem),linear-gradient(125deg,#101713,#17251e)] px-5 pb-14 pt-16 text-center sm:px-8">
+        <p className="lux-eyebrow"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Mise à jour en direct</p>
+        <div className="mt-5 flex items-center justify-center gap-3"><h1 className="font-display text-5xl font-bold leading-none text-white sm:text-6xl">Le classement</h1><button onClick={refresh} disabled={refreshing} className="rounded-full border border-gold-300/25 p-2 text-gold-300 transition hover:bg-gold-500/10 disabled:opacity-50" aria-label="Actualiser le classement"><RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} /></button></div>
+        <p className="mt-4 text-sm text-gray-400">{siteName} · édition {settings?.editionYear || '2026'}</p>
+        <div className="mx-auto mt-8 grid max-w-xl grid-cols-2 divide-x divide-gold-100/15 rounded-2xl border border-gold-100/15 bg-black/10 px-4 py-4"><div><p className="font-display text-3xl font-bold text-white">{candidates.length}</p><p className="text-xs uppercase tracking-[.14em] text-gray-500">Candidats</p></div><div><p className="font-display text-3xl font-bold text-gold-300">{totalVotes}</p><p className="text-xs uppercase tracking-[.14em] text-gray-500">Votes enregistrés</p></div></div>
+      </section>
+
+      <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
+        <div className="mb-8 flex justify-center gap-2 overflow-x-auto pb-1">
+          {[['all', 'Tous'], ['miss', 'Miss'], ['master', 'Master']].map(([id, label]) => <button key={id} onClick={() => changeCategory(id)} className={`rounded-full px-5 py-2 text-sm font-semibold transition ${activeCategory === id ? 'bg-gold-500 text-charcoal-900 shadow-lg shadow-gold-500/20' : 'border border-white/10 bg-white/[.04] text-gray-300 hover:border-gold-400/40'}`}>{label}<span className="ml-2 text-xs opacity-70">{categories[id].length}</span></button>)}
         </div>
-        
-        <p className="text-gray-400 text-sm">
-          {siteName} • Édition {editionYear}
-        </p>
-        <div className="flex items-center justify-center gap-6 text-gray-400 mt-2">
-          <span className="flex items-center gap-1">
-            <Users className="w-4 h-4" />
-            {candidates.length} Candidats
-          </span>
-          <span className="w-px h-4 bg-gray-600" />
-          <span className="flex items-center gap-1">
-            <TrendingUp className="w-4 h-4 text-gold-500" />
-            {totalVotes} Votes total
-          </span>
-        </div>
-      </motion.div>
 
-      {/* Category Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="flex gap-2 mb-8 overflow-x-auto scrollbar-hide pb-2 justify-center"
-      >
-        <button
-          onClick={() => { setActiveCategory('all'); setCurrentPage(0); }}
-          className={`flex-shrink-0 px-5 py-2.5 rounded-xl border-2 transition-all duration-300 flex items-center gap-2 ${
-            activeCategory === 'all'
-              ? 'border-gold-500 bg-gold-500/10 text-gold-400 shadow-lg shadow-gold-500/20'
-              : 'border-white/10 bg-white/5 text-gray-400 hover:border-gold-500/50'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span className="text-sm font-medium">Tous</span>
-          <span className="text-xs bg-white/10 px-2 py-0.5 rounded-full">
-            {candidates.length}
-          </span>
-        </button>
+        {loading ? <div className="grid gap-4 md:grid-cols-3">{[1, 2, 3].map((item) => <div key={item} className="h-64 animate-pulse rounded-2xl bg-white/5" />)}</div> : displayed.length === 0 ? <div className="lux-panel py-20 text-center"><Users className="mx-auto h-10 w-10 text-gray-600" /><p className="mt-4 text-gray-400">Aucun candidat dans cette catégorie.</p></div> : <>
+          {activeCategory === 'all' && <section className="mb-12"><div className="mb-5 flex items-center gap-3"><Trophy className="h-5 w-5 text-gold-300" /><h2 className="font-display text-3xl font-semibold text-white">En tête du concours</h2><span className="h-px flex-1 bg-gold-500/15" /></div><div className="grid gap-5 md:grid-cols-3">{candidates.slice(0, 3).map((candidate, index) => <motion.article key={candidate.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * .1 }} className={`lux-card relative overflow-hidden rounded-2xl p-5 ${index === 0 ? 'md:-mt-4 md:pb-8 md:pt-7' : ''}`}><div className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full border border-gold-400/30 bg-gold-500/10 text-sm font-bold text-gold-300">{index + 1}</div><img src={candidate.image || fallbackImage} alt={candidate.name} onError={(event) => { event.currentTarget.src = fallbackImage; }} className="mx-auto h-28 w-28 rounded-full border-2 border-gold-400/40 object-cover" />{index === 0 && <Crown className="mx-auto -mt-3 h-7 w-7 rounded-full bg-[#17251e] p-1 text-gold-300" />}<h3 className="mt-4 truncate text-center font-display text-2xl font-semibold text-white">{candidate.name}</h3><p className="mt-1 text-center text-xs text-gray-500">{candidate.category || 'Candidat'}</p><div className="mt-5 text-center"><p className="font-display text-3xl font-bold text-gold-300">{candidate.votes || 0}</p><p className="text-xs uppercase tracking-wider text-gray-500">votes · {percentage(candidate.votes || 0).toFixed(1)}%</p></div></motion.article>)}</div></section>}
 
-        <button
-          onClick={() => { setActiveCategory('miss'); setCurrentPage(0); }}
-          className={`flex-shrink-0 px-5 py-2.5 rounded-xl border-2 transition-all duration-300 flex items-center gap-2 ${
-            activeCategory === 'miss'
-              ? 'border-pink-500 bg-pink-500/10 text-pink-400 shadow-lg shadow-pink-500/20'
-              : 'border-white/10 bg-white/5 text-gray-400 hover:border-pink-500/50'
-          }`}
-        >
-          <User className="w-4 h-4" />
-          <span className="text-sm font-medium">Miss</span>
-          <span className="text-xs bg-white/10 px-2 py-0.5 rounded-full">
-            {missCandidates.length}
-          </span>
-        </button>
+          <section><div className="mb-5 flex items-center gap-3"><Star className="h-5 w-5 text-gold-300" /><h2 className="font-display text-3xl font-semibold text-white">Classement détaillé</h2></div><div className="overflow-hidden rounded-2xl border border-gold-100/10">{rows.map((candidate, index) => { const rank = currentPage * ITEMS_PER_PAGE + index + 1; const share = percentage(candidate.votes || 0); return <motion.article key={candidate.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * .035 }} className="group grid grid-cols-[2.5rem_3rem_1fr_auto] items-center gap-3 border-b border-gold-100/10 bg-white/[.035] p-3 last:border-0 hover:bg-gold-500/[.06] sm:grid-cols-[3rem_4rem_1fr_7rem]"><span className={`text-center font-display text-xl font-bold ${rank <= 3 ? 'text-gold-300' : 'text-gray-500'}`}>{rank}</span><img src={candidate.image || fallbackImage} alt="" onError={(event) => { event.currentTarget.src = fallbackImage; }} className="h-11 w-11 rounded-full border border-gold-100/15 object-cover sm:h-12 sm:w-12" /><div className="min-w-0"><h3 className="truncate font-semibold text-white">{candidate.name}</h3><p className="text-xs text-gray-500">{candidate.category || 'Candidat'}</p><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/20"><motion.div initial={{ width: 0 }} animate={{ width: `${share}%` }} transition={{ duration: .65 }} className="h-full rounded-full bg-gradient-to-r from-gold-600 to-gold-300" /></div></div><div className="text-right"><p className="font-bold text-gold-200">{candidate.votes || 0}</p><p className="text-[10px] text-gray-500">{share.toFixed(1)}%</p></div></motion.article>; })}</div></section>
 
-        <button
-          onClick={() => { setActiveCategory('master'); setCurrentPage(0); }}
-          className={`flex-shrink-0 px-5 py-2.5 rounded-xl border-2 transition-all duration-300 flex items-center gap-2 ${
-            activeCategory === 'master'
-              ? 'border-blue-500 bg-blue-500/10 text-blue-400 shadow-lg shadow-blue-500/20'
-              : 'border-white/10 bg-white/5 text-gray-400 hover:border-blue-500/50'
-          }`}
-        >
-          <UserCheck className="w-4 h-4" />
-          <span className="text-sm font-medium">Master</span>
-          <span className="text-xs bg-white/10 px-2 py-0.5 rounded-full">
-            {masterCandidates.length}
-          </span>
-        </button>
-      </motion.div>
-
-      {/* Candidates List - Clean Ranked List */}
-      {loading ? (
-        <div className="space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="bg-white/5 rounded-2xl animate-pulse h-20" />
-          ))}
-        </div>
-      ) : displayedCandidates.length === 0 ? (
-        <div className="text-center text-gray-400 py-12">
-          <Users className="w-16 h-16 mx-auto text-gray-600 mb-4" />
-          <p className="text-lg">Aucun candidat dans cette catégorie</p>
-        </div>
-      ) : (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-3"
-          >
-            {paginatedCandidates.map((candidate, index) => {
-              const globalIndex = currentPage * ITEMS_PER_PAGE + index;
-              const percentage = getPercentage(candidate.votes || 0);
-              const isTop3 = globalIndex < 3;
-              
-              return (
-                <motion.div
-                  key={candidate.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  whileHover={{ scale: 1.01 }}
-                  className={`relative rounded-2xl p-4 border transition-all duration-300 ${
-                    isTop3 && globalIndex === 0
-                      ? 'bg-gradient-to-r from-gold-500/10 to-gold-600/5 border-gold-500/40 shadow-lg shadow-gold-500/10'
-                      : isTop3 && globalIndex === 1
-                      ? 'bg-gradient-to-r from-gray-400/10 to-gray-300/5 border-gray-400/30'
-                      : isTop3 && globalIndex === 2
-                      ? 'bg-gradient-to-r from-amber-500/10 to-amber-600/5 border-amber-500/30'
-                      : 'bg-white/5 border-white/10'
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    {/* Rank */}
-                    <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center text-xl font-display ${getMedalColor(globalIndex)}`}>
-                      {getMedal(globalIndex)}
-                    </div>
-                    
-                    {/* Image */}
-                    <div className="flex-shrink-0 w-12 h-12 rounded-xl overflow-hidden bg-charcoal-800">
-                      <img
-                        src={candidate.image || 'https://via.placeholder.com/48x48/1a1a1a/d4a800?text=?'}
-                        alt={candidate.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.src = 'https://via.placeholder.com/48x48/1a1a1a/d4a800?text=?';
-                        }}
-                      />
-                    </div>
-                    
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className={`font-semibold truncate ${
-                          globalIndex === 0 ? 'text-gold-400 text-lg' : 'text-white'
-                        }`}>
-                          {candidate.name}
-                        </h3>
-                        {globalIndex === 0 && (
-                          <Crown className="w-4 h-4 text-gold-500 animate-pulse-gold" />
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-500">{candidate.category || 'Candidat'}</p>
-                    </div>
-                    
-                    {/* Votes & Percentage */}
-                    <div className="flex-shrink-0 text-right">
-                      <div className="flex items-center gap-1.5">
-                        <Star className={`w-3 h-3 ${globalIndex === 0 ? 'text-gold-500' : 'text-gold-500/50'}`} />
-                        <span className={`font-bold ${
-                          globalIndex === 0 ? 'text-xl text-gold-400' : 'text-lg text-white'
-                        }`}>
-                          {candidate.votes || 0}
-                        </span>
-                        <span className="text-xs text-gray-500">votes</span>
-                      </div>
-                      <div className="text-xs text-gold-400 font-medium">
-                        {percentage.toFixed(2)}%
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Progress Bar */}
-                  {totalVotes > 0 && (
-                    <div className="mt-2 w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${percentage}%` }}
-                        transition={{ delay: 0.3, duration: 0.8 }}
-                        className={`h-full rounded-full ${
-                          globalIndex === 0 ? 'bg-gradient-to-r from-gold-400 to-gold-600' :
-                          globalIndex === 1 ? 'bg-gradient-to-r from-gray-400 to-gray-500' :
-                          globalIndex === 2 ? 'bg-gradient-to-r from-amber-400 to-amber-600' :
-                          'bg-blue-500/30'
-                        }`}
-                      />
-                    </div>
-                  )}
-                </motion.div>
-              );
-            })}
-          </motion.div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-6">
-              <button
-                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                disabled={currentPage === 0}
-                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300"
-              >
-                <ChevronLeft className="w-5 h-5 text-gray-400" />
-              </button>
-              <span className="text-sm text-gray-400">
-                {currentPage + 1} / {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
-                disabled={currentPage === totalPages - 1}
-                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300"
-              >
-                <ChevronRight className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+          {totalPages > 1 && <nav className="mt-7 flex items-center justify-center gap-4" aria-label="Pagination"><button onClick={() => setCurrentPage((page) => Math.max(0, page - 1))} disabled={!currentPage} className="rounded-full border border-white/10 p-2 text-gray-300 transition hover:border-gold-400/50 disabled:opacity-30"><ChevronLeft className="h-5 w-5" /></button><span className="text-sm text-gray-400">Page {currentPage + 1} sur {totalPages}</span><button onClick={() => setCurrentPage((page) => Math.min(totalPages - 1, page + 1))} disabled={currentPage === totalPages - 1} className="rounded-full border border-white/10 p-2 text-gray-300 transition hover:border-gold-400/50 disabled:opacity-30"><ChevronRight className="h-5 w-5" /></button></nav>}
+        </>}
+      </div>
+    </main>
   );
 };
 

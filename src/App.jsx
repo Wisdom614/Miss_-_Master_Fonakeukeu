@@ -13,7 +13,6 @@ import WinnerAnnouncement from './pages/WinnerAnnouncement';
 import Navbar from './components/Navbar';
 import LoadingScreen from './components/LoadingScreen';
 import SystemShutdown from './components/SystemShutdown';
-import DeveloperBanner from './components/DeveloperBanner';
 import MinimalFooter from './components/MinimalFooter';
 import { Toaster } from 'react-hot-toast';
 
@@ -77,9 +76,7 @@ function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-gradient-dark flex flex-col">
         {/* ✅ Developer Banner - Above Navbar */}
-        {!isSystemShutdown && !showWinners && <DeveloperBanner />}
-        
-        {!isSystemShutdown && !showWinners && <Navbar user={user} />}
+        {!isSystemShutdown && !showWinners && <Navbar user={user} countdown={settings?.countdown} />}
         
         <div className="flex-1">
           <Routes>

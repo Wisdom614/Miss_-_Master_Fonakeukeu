@@ -4,7 +4,7 @@ import { MessageCircle, Sparkles, Code, Crown } from 'lucide-react';
 
 const DeveloperBanner = () => {
   return (
-    <div className="bg-gradient-to-r from-gold-500/5 via-gold-500/10 to-gold-500/5 border-b border-gold-500/20 py-1.5 px-4">
+    <div className="border-b border-gold-500/15 bg-[#0d130f] py-1.5 px-4">
       <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-2">
         {/* Left side - subtle text */}
         <div className="flex items-center gap-2 text-xs text-gray-400">

@@ -147,7 +147,7 @@ const PaymentResult = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-md w-full bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 text-center shadow-2xl"
+        className="lux-card max-w-md w-full rounded-3xl p-8 text-center shadow-2xl"
       >
         {status === 'loading' && (
           <>

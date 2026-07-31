@@ -4,13 +4,13 @@ import { MessageCircle, Sparkles, Code, Heart, Crown } from 'lucide-react';
 
 const MinimalFooter = () => {
   return (
-    <footer className="bg-charcoal-900/50 backdrop-blur-sm border-t border-white/5 py-3 mt-auto">
+    <footer className="mt-auto border-t border-gold-500/15 bg-[#0d130f]/75 py-4 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
           {/* Brand */}
           <div className="flex items-center gap-2">
             <Crown className="w-3 h-3 text-gold-400/50" />
-            <span className="text-xs text-gray-500">
+            <span className="text-xs tracking-wide text-gray-400">
               Miss & Master Fonakeukeu 2026
             </span>
           </div>

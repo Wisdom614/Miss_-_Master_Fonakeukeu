@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,7 +7,20 @@
 @layer base {
   body {
     @apply bg-charcoal-900 text-white font-body;
+    min-width: 320px;
+    background-color: #101713;
+    background-image:
+      radial-gradient(circle at 12% 12%, rgba(183, 139, 49, 0.12), transparent 26rem),
+      radial-gradient(circle at 88% 35%, rgba(105, 20, 37, 0.17), transparent 28rem),
+      linear-gradient(135deg, #101713 0%, #17251e 48%, #14110e 100%);
+    text-rendering: optimizeLegibility;
   }
+
+  ::selection { background: rgba(212, 168, 0, .42); color: white; }
+  :focus-visible { outline: 2px solid #e8c56a; outline-offset: 3px; }
+  button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+  button:disabled { cursor: not-allowed; }
+  input, select, textarea { color-scheme: dark; }
 }
 
 @layer utilities {
@@ -24,6 +39,58 @@
   .bg-gradient-gold-reverse {
     background: linear-gradient(135deg, #d4a800 0%, #f3d05f 100%);
   }
+
+  .bg-gradient-dark {
+    background:
+      radial-gradient(circle at 50% -10%, rgba(212, 168, 0, .14), transparent 33rem),
+      linear-gradient(145deg, #101713 0%, #17251e 48%, #16110f 100%);
+  }
+
+  .lux-card {
+    @apply border border-gold-500/20 bg-charcoal-900/55 backdrop-blur-xl;
+    box-shadow: 0 20px 55px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.045);
+  }
+
+  .lux-panel {
+    @apply rounded-2xl border border-white/10 bg-white/[0.045] backdrop-blur-xl;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 14px 34px rgba(0,0,0,.16);
+  }
+
+  .lux-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(232,197,106,.65), transparent);
+  }
+
+  .lux-eyebrow {
+    @apply inline-flex items-center gap-2 rounded-full border border-gold-400/30 bg-gold-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-gold-300;
+  }
+
+  .nav-marquee {
+    animation: navMarquee 24s linear infinite;
+  }
+
+  .nav-marquee:hover {
+    animation-play-state: paused;
+  }
+
+  .lux-card input:not([type='checkbox']),
+  .lux-card select,
+  .lux-card textarea,
+  .lux-panel input:not([type='checkbox']),
+  .lux-panel select,
+  .lux-panel textarea {
+    @apply border-gold-100/15 bg-black/15 placeholder:text-gray-500;
+  }
+
+  .lux-card input:focus,
+  .lux-card select:focus,
+  .lux-card textarea:focus,
+  .lux-panel input:focus,
+  .lux-panel select:focus,
+  .lux-panel textarea:focus {
+    border-color: rgba(232, 197, 106, .8);
+    box-shadow: 0 0 0 3px rgba(212, 168, 0, .12);
+  }
   
   .animate-gradient {
     background-size: 300% 300%;
@@ -34,6 +101,28 @@
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
   }
+}
+
+@keyframes navMarquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@media (max-width: 767px) {
+  .nav-marquee {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    animation: none;
+  }
+  .nav-marquee > div:nth-child(2) { display: none; }
+  .nav-marquee > div { gap: .5rem; }
+  .nav-marquee > div > span:first-of-type { max-width: 8.75rem; overflow: hidden; text-overflow: ellipsis; }
+  .nav-marquee > div > span:last-child { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 @layer utilities {
   /* Hide scrollbar for Chrome, Safari and Opera */
@@ -77,3 +166,51 @@
     scrollbar-width: none;
   }
 }
+
+/* Premium voting page */
+.voting-page { position: relative; overflow: hidden; }
+.voting-orb { position: absolute; width: 32rem; height: 32rem; border-radius: 999px; pointer-events: none; filter: blur(4px); }
+.voting-orb--left { top: 16rem; left: -22rem; background: radial-gradient(circle, rgba(212,168,0,.18), transparent 67%); }
+.voting-orb--right { top: 2rem; right: -24rem; background: radial-gradient(circle, rgba(142,38,82,.16), transparent 67%); }
+.voting-hero { position: relative; overflow: hidden; border: 1px solid rgba(232,197,106,.25); border-radius: 1.5rem; background: linear-gradient(125deg, rgba(29,40,33,.96), rgba(16,22,19,.93)); box-shadow: 0 26px 65px rgba(0,0,0,.22), inset 0 1px rgba(255,255,255,.07); }
+.voting-hero::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 93% 15%, rgba(212,168,0,.24), transparent 25%), linear-gradient(105deg, transparent 58%, rgba(255,255,255,.04)); }
+.voting-hero::after { content: 'ÉLECTION OFFICIELLE · 2026'; position: absolute; bottom: 1.2rem; right: 1.5rem; font-size: .58rem; font-weight: 700; letter-spacing: .18em; color: rgba(232,197,106,.62); }
+.voting-hero > div { position: relative; padding: 2rem; }
+.voting-hero h1 { letter-spacing: -.035em; text-wrap: balance; }
+.voting-hero h1::before { content: 'VOTEZ POUR L’EXCELLENCE'; display: block; margin-bottom: .8rem; font-family: 'DM Sans', sans-serif; font-size: .66rem; letter-spacing: .2em; color: #efc02a; }
+.voting-hero h1 span { display: inline-block; margin-left: .3rem; }
+.voting-hero p { margin-top: .9rem; color: #bac2bd; }
+.voting-hero p::before { content: 'Votre choix compte · '; color: #e8c56a; }
+.voting-hero button { display: grid; place-items: center; width: 3rem; height: 3rem; border: 1px solid rgba(232,197,106,.3); border-radius: 999px; background: rgba(255,255,255,.055); transition: .25s ease; }
+.voting-hero button:hover { border-color: rgba(232,197,106,.8); background: rgba(212,168,0,.14); transform: rotate(45deg); }
+.voting-filters { display: flex; gap: .55rem; width: max-content; max-width: 100%; overflow-x: auto; padding: .42rem; border: 1px solid rgba(255,255,255,.1); border-radius: 1rem; background: rgba(10,15,12,.42); backdrop-filter: blur(16px); }
+.voting-filter { display: flex; flex: 1 0 auto; align-items: center; justify-content: center; gap: .5rem; padding: .72rem 1.15rem; border: 1px solid transparent; border-radius: .7rem; font-size: .875rem; transition: .25s ease; }
+.voting-filter:hover { background: rgba(255,255,255,.055); }
+.voting-candidate-card { display: flex; flex-direction: column; min-height: 100%; border: 1px solid rgba(232,197,106,.16); border-radius: 1.35rem; background: linear-gradient(155deg, rgba(255,255,255,.075), rgba(255,255,255,.018)); box-shadow: inset 0 1px rgba(255,255,255,.06), 0 16px 38px rgba(0,0,0,.14); transition: transform .35s ease, border-color .35s ease, box-shadow .35s ease; }
+.voting-candidate-card:hover { transform: translateY(-7px); border-color: rgba(232,197,106,.62); box-shadow: inset 0 1px rgba(255,255,255,.09), 0 28px 52px rgba(0,0,0,.28), 0 0 25px rgba(212,168,0,.08); }
+.voting-candidate-card__image { height: clamp(20rem, 31vw, 25rem); }
+.voting-candidate-card__content { display: flex; flex: 1; flex-direction: column; background: linear-gradient(180deg, rgba(19,27,23,.94), rgba(16,22,19,.99)); }
+.voting-candidate-card__content p { min-height: 3rem; }
+.voting-candidate-card__button, .voting-modal__confirm { margin-top: auto; border-radius: .8rem; background: linear-gradient(135deg, #f6da7d, #ce9d13); color: #201a09; box-shadow: 0 10px 24px rgba(212,168,0,.16); }
+.voting-candidate-card__button:hover, .voting-modal__confirm:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(212,168,0,.32); }
+.voting-pagination button { border: 1px solid rgba(232,197,106,.18); }
+.voting-modal { border: 1px solid rgba(232,197,106,.28); border-radius: 1.5rem; background: linear-gradient(155deg, #273129, #111814 72%); box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 1px rgba(255,255,255,.08); }
+@media (min-width: 640px) { .voting-hero > div { padding: 2.6rem; } .voting-hero h1 { font-size: 3.2rem; } }
+@media (max-width: 480px) { .voting-hero::after { display: none; } .voting-hero > div { padding: 1.45rem; } .voting-hero h1 { font-size: 2.2rem; } .voting-candidate-card__image { height: 21rem; } }
+
+/* Admin workspace */
+.admin-page { min-height: 100vh; background: radial-gradient(circle at 7% 9%, rgba(212,168,0,.13), transparent 25rem), radial-gradient(circle at 94% 22%, rgba(50,103,166,.12), transparent 26rem), #101713; }
+.admin-header { position: relative; overflow: hidden; padding: 1.25rem 1.4rem; border: 1px solid rgba(232,197,106,.2); border-radius: 1.25rem; background: linear-gradient(120deg, rgba(29,40,33,.95), rgba(18,25,21,.82)); box-shadow: inset 0 1px rgba(255,255,255,.06), 0 18px 38px rgba(0,0,0,.16); }
+.admin-header::after { content: 'CONTROL CENTER'; position: absolute; right: 1.4rem; bottom: .8rem; font-size: .58rem; font-weight: 700; letter-spacing: .2em; color: rgba(232,197,106,.38); pointer-events: none; }
+.admin-header h1 { letter-spacing: -.02em; }
+.admin-stat { position: relative; overflow: hidden; box-shadow: inset 0 1px rgba(255,255,255,.05); transition: transform .25s ease, border-color .25s ease; }
+.admin-stat::after { content: ''; position: absolute; width: 4rem; height: 4rem; right: -1.8rem; bottom: -1.8rem; border-radius: 999px; background: currentColor; opacity: .05; }
+.admin-stat:hover { transform: translateY(-3px); border-color: rgba(232,197,106,.28); }
+.admin-navigation { width: max-content; max-width: 100%; padding: .4rem; border: 1px solid rgba(255,255,255,.1); border-radius: 1rem; background: rgba(8,14,11,.55); backdrop-filter: blur(16px); }
+.admin-navigation__item { min-width: 8.8rem; justify-content: center; border: 1px solid transparent; }
+.admin-navigation__item:hover { background: rgba(255,255,255,.06); }
+.admin-primary-action { position: relative; overflow: hidden; transition: transform .25s ease, box-shadow .25s ease; }
+.admin-primary-action:hover { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(212,168,0,.28); }
+.admin-candidate-row { border-color: rgba(255,255,255,.08); box-shadow: inset 0 1px rgba(255,255,255,.04); transition: border-color .25s ease, transform .25s ease, background .25s ease; }
+.admin-candidate-row:hover { transform: translateX(4px); border-color: rgba(232,197,106,.32); background: rgba(255,255,255,.075); }
+@media (min-width: 768px) { .admin-navigation { position: sticky; top: 5.2rem; z-index: 10; } }

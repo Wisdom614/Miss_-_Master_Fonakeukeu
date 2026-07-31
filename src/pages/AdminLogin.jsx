@@ -69,7 +69,7 @@ const AdminLogin = () => {
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/10 shadow-2xl"
+        className="lux-card rounded-3xl p-6 shadow-2xl"
         >
           <div className="flex items-center gap-3 mb-6">
             <Shield className="w-5 h-5 text-gold-500" />
