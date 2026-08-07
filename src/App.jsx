@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase/config';
 import Home from './pages/Home';
 import Voting from './pages/Voting';
@@ -14,6 +14,7 @@ import Navbar from './components/Navbar';
 import LoadingScreen from './components/LoadingScreen';
 import SystemShutdown from './components/SystemShutdown';
 import MinimalFooter from './components/MinimalFooter';
+import { isResultsVisible } from './utils/resultsVisibility';
 import { Toaster } from 'react-hot-toast';
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
   const [isSystemShutdown, setIsSystemShutdown] = useState(false);
   const [shutdownSettings, setShutdownSettings] = useState(null);
   const [showWinners, setShowWinners] = useState(false);
+  const resultsVisible = isResultsVisible(settings);
 
   // Check authentication state
   useEffect(() => {
@@ -34,38 +36,39 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Load settings
+  // Load settings (live updates for shutdown, winners, results visibility)
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const settingsRef = doc(db, 'system', 'settings');
-        const settingsDoc = await getDoc(settingsRef);
-        if (settingsDoc.exists()) {
-          const data = settingsDoc.data();
-          setSettings(data);
-          
-          if (data.countdown?.enabled && data.countdown?.targetDate) {
-            const now = new Date().getTime();
-            const target = new Date(data.countdown.targetDate).getTime();
-            const expired = now > target;
-            setIsVotingExpired(expired);
-            if (expired) setShowWinners(true);
-          }
-          
-          if (data.showWinners === true) setShowWinners(true);
-          
-          const shutdown = data.systemShutdown || {};
-          setIsSystemShutdown(shutdown.enabled || false);
-          setShutdownSettings(shutdown);
-        }
-      } catch (error) {
-        console.error('Error loading settings:', error);
+    const settingsRef = doc(db, 'system', 'settings');
+
+    const applySettings = (data) => {
+      if (!data) return;
+      setSettings(data);
+
+      if (data.countdown?.enabled && data.countdown?.targetDate) {
+        const now = Date.now();
+        const target = new Date(data.countdown.targetDate).getTime();
+        const expired = now > target;
+        setIsVotingExpired(expired);
+        if (expired) setShowWinners(true);
       }
+
+      if (data.showWinners === true) setShowWinners(true);
+      else if (data.showWinners === false) setShowWinners(false);
+
+      const shutdown = data.systemShutdown || {};
+      setIsSystemShutdown(shutdown.enabled || false);
+      setShutdownSettings(shutdown);
     };
-    
-    loadSettings();
-    const interval = setInterval(loadSettings, 30000);
-    return () => clearInterval(interval);
+
+    const unsubscribe = onSnapshot(
+      settingsRef,
+      (settingsDoc) => {
+        if (settingsDoc.exists()) applySettings(settingsDoc.data());
+      },
+      (error) => console.error('Error loading settings:', error),
+    );
+
+    return unsubscribe;
   }, []);
 
   if (loading) {
@@ -76,7 +79,7 @@ function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-gradient-dark flex flex-col">
         {/* ✅ Developer Banner - Above Navbar */}
-        {!isSystemShutdown && !showWinners && <Navbar user={user} countdown={settings?.countdown} />}
+        {!isSystemShutdown && !showWinners && <Navbar user={user} countdown={settings?.countdown} resultsVisible={resultsVisible} />}
         
         <div className="flex-1">
           <Routes>
@@ -84,7 +87,7 @@ function App() {
               path="/" 
               element={
                 isSystemShutdown ? 
-                  <SystemShutdown settings={{ systemShutdown: shutdownSettings }} /> : 
+                  <SystemShutdown settings={{ systemShutdown: shutdownSettings, siteName: settings?.siteName, editionYear: settings?.editionYear }} /> : 
                   (showWinners ? <Navigate to="/winners" /> : <Home />)
               } 
             />
@@ -92,7 +95,7 @@ function App() {
               path="/vote" 
               element={
                 isSystemShutdown ? 
-                  <SystemShutdown settings={{ systemShutdown: shutdownSettings }} /> : 
+                  <SystemShutdown settings={{ systemShutdown: shutdownSettings, siteName: settings?.siteName, editionYear: settings?.editionYear }} /> : 
                   (showWinners ? <Navigate to="/winners" /> : 
                     (isVotingExpired ? <Navigate to="/winners" /> : <Voting />))
               } 
@@ -101,7 +104,7 @@ function App() {
               path="/results" 
               element={
                 isSystemShutdown ? 
-                  <SystemShutdown settings={{ systemShutdown: shutdownSettings }} /> : 
+                  <SystemShutdown settings={{ systemShutdown: shutdownSettings, siteName: settings?.siteName, editionYear: settings?.editionYear }} /> : 
                   <Results />
               } 
             />

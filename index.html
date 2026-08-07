@@ -5,6 +5,31 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>miss-master-voting</title>
+    <meta name="findora-verify" content="9HXFUK">
+    <!-- Findora Tracking Pixel for Miss Master Fonakeukeu -->
+<script>
+(function() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const clickId = urlParams.get('click_id');
+  
+  if (!clickId) return;
+
+  const startTime = Date.now();
+  const FINDORA_API = 'https://kdncxluglavhsygdxmio.supabase.co/functions/v1';
+
+  fetch(`${FINDORA_API}/track-pixel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ click_id: clickId, url: window.location.href })
+  });
+
+  window.addEventListener('beforeunload', () => {
+    const duration = Math.floor((Date.now() - startTime) / 1000);
+    navigator.sendBeacon(`${FINDORA_API}/track-exit`, JSON.stringify({ click_id: clickId, duration_seconds: duration }));
+  });
+})();
+</script>
+<!-- End Findora Pixel -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">

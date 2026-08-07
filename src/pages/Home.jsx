@@ -1,39 +1,51 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Crown, Gem, ShieldCheck, Trophy, Users, Vote } from 'lucide-react';
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { ArrowRight, CheckCircle2, Crown, EyeOff, Gem, ShieldCheck, Trophy, Users, Vote } from 'lucide-react';
+import { collection, doc, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { isResultsVisible } from '../utils/resultsVisibility';
 
 const Home = () => {
   const [stats, setStats] = useState({ totalVotes: 0, candidates: 0 });
   const [settings, setSettings] = useState(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const settingsRef = doc(db, 'system', 'settings');
+    const unsubscribeSettings = onSnapshot(
+      settingsRef,
+      (snapshot) => { if (snapshot.exists()) setSettings(snapshot.data()); },
+      (error) => console.error('Error loading settings:', error),
+    );
+
+    const fetchCandidates = async () => {
       try {
-        const [candidatesSnapshot, settingsDoc] = await Promise.all([
-          getDocs(collection(db, 'candidates')),
-          getDoc(doc(db, 'system', 'settings')),
-        ]);
+        const candidatesSnapshot = await getDocs(collection(db, 'candidates'));
         const totalVotes = candidatesSnapshot.docs.reduce((total, candidate) => total + (candidate.data().votes || 0), 0);
         setStats({ totalVotes, candidates: candidatesSnapshot.size });
-        if (settingsDoc.exists()) setSettings(settingsDoc.data());
       } catch (error) {
         console.error('Error fetching home data:', error);
       }
     };
-    fetchData();
+
+    fetchCandidates();
+    return unsubscribeSettings;
   }, []);
+
+  const showResults = isResultsVisible(settings);
 
   const siteName = settings?.siteName || 'Miss & Master Fonakeukeu';
   const editionYear = settings?.editionYear || '2026';
   const votePrice = settings?.votePrice || 100;
-  const metrics = [
-    { icon: Vote, value: stats.totalVotes, label: 'votes exprimés' },
+  const metrics = useMemo(() => [
+    {
+      icon: showResults ? Vote : EyeOff,
+      value: showResults ? stats.totalVotes : '—',
+      label: showResults ? 'votes exprimés' : 'votes non publiés',
+    },
     { icon: Users, value: stats.candidates, label: 'candidats' },
     { icon: Gem, value: `${votePrice} FCFA`, label: 'par vote' },
-  ];
+  ], [showResults, stats.totalVotes, stats.candidates, votePrice]);
 
   return (
     <main className="overflow-hidden">
@@ -54,7 +66,9 @@ const Home = () => {
               <Link to="/vote" className="group inline-flex items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#f5dc91] via-gold-500 to-[#e8c56a] px-7 py-4 font-semibold text-charcoal-900 shadow-[0_12px_35px_rgba(212,168,0,.24)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(212,168,0,.34)]">
                 Voter pour un candidat <ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
               </Link>
-              <Link to="/results" className="inline-flex items-center justify-center rounded-full border border-gold-300/40 bg-black/10 px-7 py-4 font-semibold text-gold-100 transition hover:border-gold-300 hover:bg-gold-500/10">Voir le classement</Link>
+              {showResults && (
+                <Link to="/results" className="inline-flex items-center justify-center rounded-full border border-gold-300/40 bg-black/10 px-7 py-4 font-semibold text-gold-100 transition hover:border-gold-300 hover:bg-gold-500/10">Voir le classement</Link>
+              )}
             </div>
           </motion.div>
 
@@ -64,7 +78,7 @@ const Home = () => {
               <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-gold-200 to-transparent" />
               <Crown className="mb-7 h-10 w-10 text-gold-300" />
               <p className="font-display text-3xl font-semibold text-white">Une couronne se gagne avec le soutien de tous.</p>
-              <p className="mt-4 text-sm leading-6 text-gray-400">Le classement est mis à jour en direct après chaque vote validé.</p>
+              <p className="mt-4 text-sm leading-6 text-gray-400">Le classement est {showResults ? 'mis à jour en direct après chaque vote validé' : 'publié lorsque l\'organisation l\'autorise'}.</p>
               <div className="mt-8 grid grid-cols-3 divide-x divide-gold-100/10 border-y border-gold-100/10 py-5">
                 {metrics.map(({ icon: Icon, value, label }) => <div key={label} className="px-2 text-center first:pl-0 last:pr-0"><Icon className="mx-auto mb-2 h-4 w-4 text-gold-400" /><p className="text-lg font-bold text-white">{value}</p><p className="mt-1 text-[10px] uppercase tracking-wide text-gray-500">{label}</p></div>)}
               </div>

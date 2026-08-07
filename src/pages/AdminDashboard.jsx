@@ -268,7 +268,11 @@ const AdminDashboard = () => {
       const settingsDoc = await getDoc(settingsRef);
       
       if (settingsDoc.exists()) {
-        setSettings(settingsDoc.data());
+        const data = settingsDoc.data();
+        setSettings({
+          ...data,
+          resultsVisible: data.resultsVisible !== false,
+        });
         setSettingsLoading(false);
       } else {
         const created = await initializeSystemSettings();
@@ -460,6 +464,22 @@ const AdminDashboard = () => {
     }
   };
 
+  const setResultsVisibility = async (visible) => {
+    try {
+      const settingsRef = doc(db, 'system', 'settings');
+      await setDoc(settingsRef, {
+        resultsVisible: visible,
+        updatedAt: serverTimestamp(),
+        updatedBy: auth.currentUser?.email || 'admin',
+      }, { merge: true });
+      setSettings((prev) => ({ ...prev, resultsVisible: visible }));
+      toast.success(visible ? 'Classement en direct activé pour le public' : 'Classement masqué — les votes restent enregistrés');
+    } catch (error) {
+      console.error('Error updating results visibility:', error);
+      toast.error('Erreur lors de la mise à jour du classement');
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -611,6 +631,25 @@ const AdminDashboard = () => {
               className="px-3 py-1 bg-red-500/20 text-red-400 rounded-lg text-xs hover:bg-red-500/30 transition-all duration-300"
             >
               Voir l'aperçu
+            </button>
+          </div>
+        )}
+
+        {/* Realtime Results Status */}
+        {settings.resultsVisible === false && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <EyeOff className="w-5 h-5 text-amber-400" />
+              <div>
+                <p className="text-sm text-amber-300 font-medium">Classement masqué au public</p>
+                <p className="text-xs text-amber-300/70">Les votes continuent d&apos;être enregistrés — seule l&apos;affichage est désactivé</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setResultsVisibility(true)}
+              className="px-3 py-1 bg-amber-500/20 text-amber-300 rounded-lg text-xs hover:bg-amber-500/30 transition-all duration-300"
+            >
+              Publier maintenant
             </button>
           </div>
         )}
@@ -1079,6 +1118,65 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
+                {/* Realtime Results Control */}
+                <div className="border-t border-white/10 pt-4">
+                  <h3 className="text-sm font-semibold text-gold-400 mb-3 flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4" />
+                    Classement en temps réel
+                  </h3>
+
+                  <div className="bg-white/[0.03] rounded-xl p-4 border border-white/10">
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-white font-medium">Visibilité du classement public</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Contrôle si les utilisateurs voient les votes et le classement en direct. Aucune donnée n&apos;est supprimée — seul l&apos;affichage change.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+                        <div>
+                          <p className="text-sm text-gray-400">Statut actuel</p>
+                          <p className={`text-xs font-medium ${settings.resultsVisible !== false ? 'text-green-400' : 'text-amber-400'}`}>
+                            {settings.resultsVisible !== false ? '✅ Classement visible en direct' : '🔒 Classement masqué'}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          {settings.resultsVisible === false ? (
+                            <button
+                              type="button"
+                              onClick={() => setResultsVisibility(true)}
+                              className="px-4 py-2 bg-gradient-gold text-charcoal-900 rounded-xl text-sm font-bold flex items-center gap-2 hover:shadow-lg hover:shadow-gold-500/30 transition-all duration-300"
+                            >
+                              <Eye className="w-4 h-4" />
+                              Publier le classement
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setResultsVisibility(false)}
+                              className="px-4 py-2 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-amber-500/20 transition-all duration-300"
+                            >
+                              <EyeOff className="w-4 h-4" />
+                              Masquer le classement
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {settings.resultsVisible !== false && (
+                        <button
+                          type="button"
+                          onClick={() => window.open('/results', '_blank')}
+                          className="w-full py-2 bg-white/5 text-gray-300 rounded-xl text-sm font-medium hover:bg-white/10 transition-all duration-300"
+                        >
+                          Voir la page résultats
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Winner Announcement Control */}
                 <div className="border-t border-white/10 pt-4">
                   <h3 className="text-sm font-semibold text-gold-400 mb-3 flex items-center gap-2">
@@ -1182,11 +1280,11 @@ const AdminDashboard = () => {
                       />
                     </label>
                     <label className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
-                      <span className="text-sm text-gray-400">Résultats visibles</span>
+                      <span className="text-sm text-gray-400">Résultats visibles (sauvegarde avec paramètres)</span>
                       <input
                         type="checkbox"
                         name="resultsVisible"
-                        checked={settings.resultsVisible}
+                        checked={settings.resultsVisible !== false}
                         onChange={handleSettingsChange}
                         disabled={!editingSettings}
                         className="w-5 h-5 rounded border-white/10 bg-white/5 text-gold-500 focus:ring-gold-500"

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, getDocs, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { isResultsVisible } from '../utils/resultsVisibility';
 import { 
   Users, Sparkles, Crown, ChevronLeft, ChevronRight,
   Plus, Minus, X, Star, TrendingUp, Smartphone, 
@@ -86,54 +87,40 @@ const Voting = () => {
   const availablePaymentMethods = getAvailablePaymentMethods();
 
   useEffect(() => {
-    fetchCandidates();
-    loadSettings();
-
     const q = collection(db, 'candidates');
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const candidatesData = [];
-      snapshot.forEach(doc => {
-        const data = { id: doc.id, ...doc.data() };
-        candidatesData.push(data);
-      });
-      candidatesData.sort((a, b) => (b.votes || 0) - (a.votes || 0));
+      const candidatesData = snapshot.docs.map((candidateDoc) => ({
+        id: candidateDoc.id,
+        ...candidateDoc.data(),
+      }));
       setCandidates(candidatesData);
       setLoading(false);
     }, (error) => {
       console.error('Error in real-time listener:', error);
     });
 
-    return () => unsubscribe();
+    const settingsRef = doc(db, 'system', 'settings');
+    const unsubscribeSettings = onSnapshot(
+      settingsRef,
+      (snapshot) => { if (snapshot.exists()) setSettings(snapshot.data()); },
+      (error) => console.error('Error loading settings:', error),
+    );
+
+    return () => {
+      unsubscribe();
+      unsubscribeSettings();
+    };
   }, [refreshKey]);
 
-  const fetchCandidates = async () => {
-    try {
-      const snapshot = await getDocs(collection(db, 'candidates'));
-      const candidatesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      candidatesData.sort((a, b) => (b.votes || 0) - (a.votes || 0));
-      setCandidates(candidatesData);
-    } catch (error) {
-      console.error('Error fetching candidates:', error);
-      toast.error('Erreur de chargement des candidats');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const showRealtimeResults = isResultsVisible(settings);
 
-  const loadSettings = async () => {
-    try {
-      const settingsRef = doc(db, 'system', 'settings');
-      const settingsDoc = await getDoc(settingsRef);
-      if (settingsDoc.exists()) {
-        setSettings(settingsDoc.data());
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
+  const sortedCandidates = useMemo(() => {
+    const list = [...candidates];
+    if (showRealtimeResults) {
+      return list.sort((a, b) => (b.votes || 0) - (a.votes || 0));
     }
-  };
+    return list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' }));
+  }, [candidates, showRealtimeResults]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -286,13 +273,13 @@ const Voting = () => {
     return text.substring(0, maxLength) + '...';
   };
 
-  const missCandidates = candidates.filter(c => c.category?.includes('Miss'));
-  const masterCandidates = candidates.filter(c => c.category?.includes('Master'));
+  const missCandidates = sortedCandidates.filter((c) => c.category?.includes('Miss'));
+  const masterCandidates = sortedCandidates.filter((c) => c.category?.includes('Master'));
   
   const getDisplayedCandidates = () => {
     if (activeCategory === 'miss') return missCandidates;
     if (activeCategory === 'master') return masterCandidates;
-    return candidates;
+    return sortedCandidates;
   };
 
   const displayedCandidates = getDisplayedCandidates();
@@ -431,6 +418,8 @@ const Voting = () => {
                   : 'bg-gradient-to-r from-blue-500 via-blue-400 to-blue-600';
                 const badgeGlow = isMiss ? 'shadow-pink-500/40' : 'shadow-blue-500/40';
                 const Icon = getCategoryIcon(candidate.category);
+                const rank = currentPage * VOTES_PER_PAGE + index + 1;
+                const isTopThree = showRealtimeResults && rank <= 3;
                 const isExpanded = expandedDescriptions[candidate.id] || false;
                 const description = candidate.description || '';
                 const shouldTruncate = description.length > 120;
@@ -443,7 +432,7 @@ const Voting = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ delay: index * 0.08 }}
-                    className="voting-candidate-card group relative overflow-hidden"
+                    className={`voting-candidate-card ${isTopThree ? 'voting-candidate-card--top-three' : ''} ${showRealtimeResults && rank === 1 ? 'voting-candidate-card--leader' : ''} group relative overflow-hidden`}
                   >
                     {/* Decorative Corner Elements */}
                     <div className="absolute top-0 left-0 w-20 h-20 border-t-2 border-l-2 border-gold-500/20 rounded-tl-2xl z-10" />
@@ -465,7 +454,15 @@ const Voting = () => {
                           e.target.src = 'https://via.placeholder.com/600x450/1a1a1a/d4a800?text=?';
                         }}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-charcoal-900 via-charcoal-900/20 to-transparent opacity-80" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#101713] via-[#101713]/15 to-transparent" />
+                      <div className={`candidate-category-banner ${isMiss ? 'candidate-category-banner--miss' : 'candidate-category-banner--master'}`}>
+                        <Icon className="h-3.5 w-3.5" />
+                        <span>{isMiss ? 'Miss Fonakeukeu' : 'Master Fonakeukeu'}</span>
+                      </div>
+                      {isTopThree && (
+                        <div className="candidate-rank-banner"><Medal className="h-4 w-4" /><span>Top {rank}</span></div>
+                      )}
+                      <div className="candidate-image-frame" />
                       
                       {/* Premium Diagonal Badge - Large & Visible */}
                       <div className="absolute -top-1 -right-1 z-20">
@@ -484,12 +481,13 @@ const Voting = () => {
                         <Crown className={`w-12 h-12 ${isMiss ? 'text-pink-400' : 'text-blue-400'}`} />
                       </div>
                       
-                      {/* Enhanced Vote Count Badge */}
-                      <div className="absolute bottom-4 left-4 bg-charcoal-900/80 backdrop-blur-sm px-4 py-2 rounded-xl flex items-center gap-2 border border-gold-500/30 shadow-lg shadow-gold-500/10">
-                        <Trophy className="w-4 h-4 text-gold-400" />
-                        <span className="text-white font-bold">{candidate.votes || 0}</span>
-                        <span className="text-gray-400 text-xs">votes</span>
-                      </div>
+                      {showRealtimeResults && (
+                        <div className="absolute bottom-4 left-4 bg-charcoal-900/80 backdrop-blur-sm px-4 py-2 rounded-xl flex items-center gap-2 border border-gold-500/30 shadow-lg shadow-gold-500/10">
+                          <Trophy className="w-4 h-4 text-gold-400" />
+                          <span className="text-white font-bold">{candidate.votes || 0}</span>
+                          <span className="text-gray-400 text-xs">votes</span>
+                        </div>
+                      )}
 
                       {/* Decorative Ribbon Bottom */}
                       <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-gold-500/50 to-transparent" />
@@ -500,7 +498,8 @@ const Voting = () => {
                       {/* Small decorative line */}
                       <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 bg-gradient-gold rounded-full" />
                       
-                      <h3 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+                      <div className="candidate-card__eyebrow">Candidat officiel <span>#{String(rank).padStart(2, '0')}</span></div>
+                      <h3 className="candidate-card__name text-lg font-semibold text-white mb-1 flex items-center gap-2">
                         {candidate.name}
                         {isMiss ? (
                           <span className="text-pink-400">✨</span>

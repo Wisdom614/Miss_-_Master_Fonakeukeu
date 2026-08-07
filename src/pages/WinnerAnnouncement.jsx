@@ -1,76 +1,182 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Crown, Trophy, Award, Sparkles, Star, 
-  Heart, Diamond, Gift, Medal, Users, 
-  CheckCircle, ArrowLeft, PartyPopper, 
-  Music, Camera, Share2, Settings
+import {
+  Crown,
+  Trophy,
+  Sparkles,
+  Star,
+  Heart,
+  Users,
+  ArrowLeft,
+  PartyPopper,
+  Settings,
+  Gem,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
+const FALLBACK_IMAGE = 'https://via.placeholder.com/480x640/17251e/e8c56a?text=?';
+
+const CONFETTI_COLORS = ['#f5d878', '#d4a800', '#e8c56a', '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff'];
+
+const triggerCelebration = (onStart, onEnd) => {
+  onStart?.();
+
+  const duration = 3200;
+  const end = Date.now() + duration;
+
+  (function frame() {
+    confetti({
+      particleCount: 8,
+      startVelocity: 32,
+      spread: 70,
+      origin: { y: 0.58, x: Math.random() },
+      colors: CONFETTI_COLORS,
+    });
+    if (Date.now() < end) requestAnimationFrame(frame);
+  })();
+
+  setTimeout(() => {
+    confetti({ particleCount: 120, spread: 110, origin: { y: 0.48 }, colors: CONFETTI_COLORS, startVelocity: 42 });
+  }, 900);
+
+  setTimeout(() => {
+    confetti({ particleCount: 90, spread: 85, origin: { y: 0.42, x: 0.18 }, colors: CONFETTI_COLORS, startVelocity: 36 });
+    confetti({ particleCount: 90, spread: 85, origin: { y: 0.42, x: 0.82 }, colors: CONFETTI_COLORS, startVelocity: 36 });
+  }, 1800);
+
+  setTimeout(() => onEnd?.(), 4200);
+};
+
+const WinnerCard = ({ winner, variant, title, subtitle, delay = 0, voteShare = 0 }) => {
+  if (!winner) return null;
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 36, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
+      className={`winner-card winner-card--${variant}`}
+    >
+      <div className={`winner-card__glow winner-card__glow--tl`} />
+      <div className={`winner-card__glow winner-card__glow--br`} />
+
+      <div className="winner-card__image-wrap">
+        <span className="winner-card__ribbon">{title}</span>
+        <span className="winner-card__badge">
+          <Trophy className="h-3.5 w-3.5" />
+          Gagnant
+        </span>
+        <span className="winner-card__frame" aria-hidden="true" />
+        <img
+          src={winner.image || FALLBACK_IMAGE}
+          alt={winner.name}
+          onError={(event) => { event.currentTarget.src = FALLBACK_IMAGE; }}
+        />
+      </div>
+
+      <div className="winner-card__crown" aria-hidden="true">
+        <Crown className="h-6 w-6 text-gold-300" />
+      </div>
+
+      <div className="winner-card__body">
+        <p className="winner-card__eyebrow">
+          <Sparkles className="h-3 w-3 text-gold-400" />
+          <span>{subtitle}</span>
+        </p>
+        <h2 className="winner-card__name">{winner.name}</h2>
+
+        <div className="winner-card__votes">
+          <Star className="h-5 w-5 shrink-0 text-gold-400" />
+          <div>
+            <p className="winner-card__votes-value">{winner.votes || 0}</p>
+            <p className="winner-card__votes-label">votes enregistrés</p>
+          </div>
+        </div>
+
+        {voteShare > 0 && (
+          <p className="winner-card__share">{voteShare.toFixed(1)}% des votes de sa catégorie</p>
+        )}
+      </div>
+    </motion.article>
+  );
+};
+
 const WinnerAnnouncement = () => {
   const [loading, setLoading] = useState(true);
   const [missWinner, setMissWinner] = useState(null);
   const [masterWinner, setMasterWinner] = useState(null);
+  const [totalVotes, setTotalVotes] = useState(0);
+  const [missCategoryTotal, setMissCategoryTotal] = useState(0);
+  const [masterCategoryTotal, setMasterCategoryTotal] = useState(0);
   const [settings, setSettings] = useState(null);
   const [activeConfetti, setActiveConfetti] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
   const navigate = useNavigate();
   const containerRef = useRef(null);
 
   useEffect(() => {
-    fetchWinners();
-    loadSettings();
-    checkVisibility();
-  }, []);
-
-  const checkVisibility = async () => {
-    try {
-      const settingsRef = doc(db, 'system', 'settings');
-      const settingsDoc = await getDoc(settingsRef);
-      if (settingsDoc.exists()) {
-        const data = settingsDoc.data();
-        // If winners are not supposed to be shown, redirect
-        if (!data.showWinners) {
-          setIsVisible(false);
-          navigate('/');
+    const init = async () => {
+      try {
+        const settingsRef = doc(db, 'system', 'settings');
+        const settingsDoc = await getDoc(settingsRef);
+        if (settingsDoc.exists()) {
+          const data = settingsDoc.data();
+          setSettings(data);
+          if (!data.showWinners) {
+            navigate('/');
+            return;
+          }
         }
+      } catch (error) {
+        console.error('Error checking visibility:', error);
       }
-    } catch (error) {
-      console.error('Error checking visibility:', error);
-    }
-  };
+
+      await fetchWinners();
+    };
+
+    init();
+  }, [navigate]);
 
   const fetchWinners = async () => {
     try {
-      const candidatesRef = collection(db, 'candidates');
-      const snapshot = await getDocs(candidatesRef);
-      
+      const snapshot = await getDocs(collection(db, 'candidates'));
+
       let missCandidates = [];
       let masterCandidates = [];
-      
-      snapshot.forEach(doc => {
-        const data = { id: doc.id, ...doc.data() };
-        if (data.category?.includes('Miss')) {
-          missCandidates.push(data);
-        } else if (data.category?.includes('Master')) {
-          masterCandidates.push(data);
-        }
+      let votesSum = 0;
+
+      snapshot.forEach((candidateDoc) => {
+        const data = { id: candidateDoc.id, ...candidateDoc.data() };
+        votesSum += data.votes || 0;
+        if (data.category?.includes('Miss')) missCandidates.push(data);
+        else if (data.category?.includes('Master')) masterCandidates.push(data);
       });
-      
+
       missCandidates.sort((a, b) => (b.votes || 0) - (a.votes || 0));
       masterCandidates.sort((a, b) => (b.votes || 0) - (a.votes || 0));
-      
-      setMissWinner(missCandidates[0] || null);
-      setMasterWinner(masterCandidates[0] || null);
+
+      const missVotesTotal = missCandidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
+      const masterVotesTotal = masterCandidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
+
+      const topMiss = missCandidates[0] || null;
+      const topMaster = masterCandidates[0] || null;
+
+      setMissWinner(topMiss);
+      setMasterWinner(topMaster);
+      setTotalVotes(votesSum);
+      setMissCategoryTotal(missVotesTotal);
+      setMasterCategoryTotal(masterVotesTotal);
       setLoading(false);
-      
-      // Trigger celebration when winners are found
-      if (missCandidates[0] || masterCandidates[0]) {
-        setTimeout(() => triggerCelebration(), 500);
+
+      if (topMiss || topMaster) {
+        setTimeout(() => {
+          triggerCelebration(
+            () => setActiveConfetti(true),
+            () => setActiveConfetti(false),
+          );
+        }, 700);
       }
     } catch (error) {
       console.error('Error fetching winners:', error);
@@ -78,141 +184,28 @@ const WinnerAnnouncement = () => {
     }
   };
 
-  const loadSettings = async () => {
-    try {
-      const settingsRef = doc(db, 'system', 'settings');
-      const settingsDoc = await getDoc(settingsRef);
-      if (settingsDoc.exists()) {
-        setSettings(settingsDoc.data());
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-  };
-
-  const triggerCelebration = () => {
-    if (activeConfetti) return;
-    setActiveConfetti(true);
-    
-    const duration = 3000;
-    const end = Date.now() + duration;
-    const colors = ['#d4a800', '#f3d05f', '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6bff'];
-
-    (function frame() {
-      confetti({
-        particleCount: 7,
-        startVelocity: 30,
-        spread: 60,
-        origin: { y: 0.6, x: Math.random() },
-        colors: colors,
-      });
-
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
-    })();
-
-    setTimeout(() => {
-      confetti({
-        particleCount: 100,
-        spread: 100,
-        origin: { y: 0.5 },
-        colors: colors,
-        startVelocity: 40,
-      });
-    }, 1000);
-
-    setTimeout(() => {
-      confetti({
-        particleCount: 80,
-        spread: 80,
-        origin: { y: 0.4, x: 0.2 },
-        colors: colors,
-        startVelocity: 35,
-      });
-      confetti({
-        particleCount: 80,
-        spread: 80,
-        origin: { y: 0.4, x: 0.8 },
-        colors: colors,
-        startVelocity: 35,
-      });
-    }, 2000);
-
-    setTimeout(() => setActiveConfetti(false), 4000);
-  };
-
   const handleCelebrate = () => {
-    triggerCelebration();
-  };
-
-  const WinnerCard = ({ winner, title, icon: Icon, color, bgColor }) => {
-    if (!winner) return null;
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8, y: 50 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.3 }}
-        className={`relative bg-gradient-to-b from-white/5 to-white/0 backdrop-blur-xl rounded-3xl p-6 border border-white/10 overflow-hidden shadow-2xl ${color}`}
-      >
-        <div className={`absolute inset-0 ${bgColor} opacity-20 blur-2xl`} />
-        <div className="absolute -top-10 -right-10 opacity-10">
-          <Crown className="w-40 h-40 text-gold-500" />
-        </div>
-
-        <div className="absolute top-4 right-4">
-          <div className="bg-gold-500/20 backdrop-blur-sm px-3 py-1 rounded-full border border-gold-500/30 flex items-center gap-1.5">
-            <Trophy className="w-3.5 h-3.5 text-gold-400" />
-            <span className="text-xs font-bold text-gold-400">GAGNANT</span>
-          </div>
-        </div>
-
-        <div className="relative w-32 h-32 mx-auto mb-4">
-          <div className="absolute inset-0 bg-gold-500/20 rounded-full blur-2xl animate-pulse" />
-          <div className="relative rounded-full overflow-hidden border-4 border-gold-500/30 w-32 h-32 mx-auto">
-            <img
-              src={winner.image || 'https://via.placeholder.com/128x128/1a1a1a/d4a800?text=?'}
-              alt={winner.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.src = 'https://via.placeholder.com/128x128/1a1a1a/d4a800?text=?';
-              }}
-            />
-          </div>
-          <div className="absolute -bottom-1 -right-1">
-            <Crown className="w-8 h-8 text-gold-400 drop-shadow-lg" />
-          </div>
-        </div>
-
-        <h3 className="text-xl font-bold text-white text-center mb-1">
-          {winner.name}
-        </h3>
-        <p className="text-sm text-gray-400 text-center mb-3">{title}</p>
-
-        <div className="flex items-center justify-center gap-4 text-sm">
-          <div className="flex items-center gap-1.5 text-gold-400">
-            <Star className="w-4 h-4" />
-            <span className="font-bold">{winner.votes || 0}</span>
-            <span className="text-gray-500">votes</span>
-          </div>
-        </div>
-      </motion.div>
+    if (activeConfetti) return;
+    triggerCelebration(
+      () => setActiveConfetti(true),
+      () => setActiveConfetti(false),
     );
   };
 
+  const missShare = missCategoryTotal && missWinner ? ((missWinner.votes || 0) / missCategoryTotal) * 100 : 0;
+  const masterShare = masterCategoryTotal && masterWinner ? ((masterWinner.votes || 0) / masterCategoryTotal) * 100 : 0;
+  const hasWinners = Boolean(missWinner || masterWinner);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-dark flex items-center justify-center">
-        <div className="text-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="inline-block"
-          >
-            <Crown className="w-16 h-16 text-gold-500" />
-          </motion.div>
-          <p className="mt-4 text-gold-400 font-display text-xl">Chargement des résultats...</p>
+      <div className="winners-page flex min-h-screen items-center justify-center px-5">
+        <div className="winners-page__bg" />
+        <div className="relative text-center">
+          <div className="winners-loading__ring">
+            <Crown className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-gold-400" />
+          </div>
+          <p className="mt-6 font-display text-2xl text-white">Préparation de l&apos;annonce</p>
+          <p className="mt-2 text-sm text-gray-500">Chargement des résultats officiels…</p>
         </div>
       </div>
     );
@@ -222,165 +215,129 @@ const WinnerAnnouncement = () => {
   const editionYear = settings?.editionYear || '2026';
 
   return (
-    <div ref={containerRef} className="relative min-h-screen bg-gradient-to-br from-charcoal-900 via-charcoal-800 to-charcoal-900 overflow-hidden">
-      {/* Background Particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(50)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-full bg-gold-500/5"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              width: Math.random() * 3 + 1,
-              height: Math.random() * 3 + 1,
-            }}
-            animate={{
-              y: [0, -30, 0],
-              opacity: [0, 0.5, 0],
-            }}
-            transition={{
-              duration: Math.random() * 5 + 3,
-              delay: Math.random() * 5,
-              repeat: Infinity,
-            }}
-          />
-        ))}
-      </div>
+    <div ref={containerRef} className="winners-page">
+      <div className="winners-page__bg" />
+      <div className="winners-page__ring winners-page__ring--one" />
+      <div className="winners-page__ring winners-page__ring--two" />
 
-      {/* Glowing Orbs */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gold-500/5 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-gold-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
-
-      {/* Floating Decorations */}
-      {[
-        { Icon: Crown, x: '5%', y: '10%', size: 32, delay: 0 },
-        { Icon: Trophy, x: '90%', y: '15%', size: 28, delay: 1 },
-        { Icon: Sparkles, x: '10%', y: '80%', size: 24, delay: 2 },
-        { Icon: Award, x: '85%', y: '85%', size: 30, delay: 0.5 },
-      ].map((item, index) => (
-        <motion.div
-          key={index}
-          className="absolute text-gold-500/20 pointer-events-none"
-          style={{ left: item.x, top: item.y }}
-          animate={{
-            y: [0, -20, 0],
-            rotate: [0, 10, -10, 0],
-          }}
-          transition={{
-            duration: 4 + index,
-            delay: item.delay,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        >
-          <item.Icon className={`w-${item.size/4} h-${item.size/4}`} />
-        </motion.div>
-      ))}
-
-      {/* Main Content */}
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-12">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -30 }}
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-14 sm:px-8 sm:py-20">
+        <motion.header
+          initial={{ opacity: 0, y: -24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-12"
+          transition={{ duration: 0.65 }}
+          className="winners-hero mb-12 sm:mb-16"
         >
-          <div className="relative inline-block mb-2">
-            <motion.div
-              animate={{ scale: [1, 1.05, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="absolute inset-0 bg-gold-500/20 blur-2xl"
-            />
-            <h1 className="relative font-display text-4xl md:text-6xl font-bold text-white flex items-center justify-center gap-3">
-              <Sparkles className="w-8 h-8 text-gold-400 animate-pulse" />
-              <span className="text-transparent bg-gradient-to-r from-gold-300 via-gold-400 to-gold-500 bg-clip-text">
-                Gagnants
-              </span>
-              <Sparkles className="w-8 h-8 text-gold-400 animate-pulse" style={{ animationDelay: '0.5s' }} />
-            </h1>
+          <div className="lux-eyebrow mx-auto mb-5 w-fit">
+            <Gem className="h-3.5 w-3.5" />
+            Annonce officielle · {editionYear}
           </div>
-          <p className="text-gray-400 text-sm mt-2">
-            {siteName} • Édition {editionYear}
+
+          <h1 className="winners-hero__title font-display font-bold text-white">
+            Les <span>Gagnants</span>
+          </h1>
+
+          <div className="winners-hero__divider" />
+
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-gray-400 sm:text-base">
+            {siteName} couronne ce soir les lauréats élus par votre soutien.
+            Merci à toutes et à tous pour votre participation.
           </p>
-        </motion.div>
 
-        {/* Winners Grid */}
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl w-full mx-auto">
-          <WinnerCard
-            winner={missWinner}
-            title="👑 Miss Fonakeukeu"
-            icon={Crown}
-            color="shadow-pink-500/10"
-            bgColor="bg-pink-500"
-          />
-          <WinnerCard
-            winner={masterWinner}
-            title="🎩 Master Fonakeukeu"
-            icon={Trophy}
-            color="shadow-blue-500/10"
-            bgColor="bg-blue-500"
-          />
-        </div>
+          {hasWinners && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35, duration: 0.55 }}
+              className="winners-stats"
+            >
+              <div className="winners-stats__item">
+                <p className="winners-stats__value">{totalVotes.toLocaleString('fr-FR')}</p>
+                <p className="winners-stats__label">Votes totaux</p>
+              </div>
+              <div className="winners-stats__item">
+                <p className="winners-stats__value">{(missWinner ? 1 : 0) + (masterWinner ? 1 : 0)}</p>
+                <p className="winners-stats__label">Couronnes décernées</p>
+              </div>
+            </motion.div>
+          )}
+        </motion.header>
 
-        {/* If no winners found */}
-        {!missWinner && !masterWinner && (
-          <div className="text-center text-gray-400 py-12">
-            <Users className="w-16 h-16 mx-auto text-gray-600 mb-4" />
-            <p className="text-lg">Aucun gagnant pour le moment</p>
-            <p className="text-sm">Les résultats seront annoncés bientôt</p>
-          </div>
-        )}
+        {hasWinners ? (
+          <>
+            <div className="winners-grid flex-1">
+              <WinnerCard
+                winner={missWinner}
+                variant="miss"
+                title="Miss"
+                subtitle="Miss Fonakeukeu"
+                delay={0.25}
+                voteShare={missShare}
+              />
+              <WinnerCard
+                winner={masterWinner}
+                variant="master"
+                title="Master"
+                subtitle="Master Fonakeukeu"
+                delay={0.4}
+                voteShare={masterShare}
+              />
+            </div>
 
-        {/* Celebration Button */}
-        {missWinner && masterWinner && (
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.75, duration: 0.55 }}
+              className="winners-actions mt-12 sm:mt-16"
+            >
+              <button type="button" onClick={handleCelebrate} className="winners-actions__primary">
+                <PartyPopper className="h-5 w-5" />
+                Célébrer encore
+              </button>
+              <button type="button" onClick={() => navigate('/vote')} className="winners-actions__secondary">
+                <ArrowLeft className="h-4 w-4" />
+                Retour au vote
+              </button>
+            </motion.div>
+          </>
+        ) : (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-            className="mt-10 flex flex-wrap items-center justify-center gap-4"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="winners-empty"
           >
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleCelebrate}
-              className="bg-gradient-gold text-charcoal-900 px-8 py-3 rounded-full font-bold flex items-center gap-2 shadow-lg shadow-gold-500/30 hover:shadow-gold-500/50 transition-all duration-300"
-            >
-              <PartyPopper className="w-5 h-5" />
-              🎉 Célébrer encore
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <Users className="mx-auto h-12 w-12 text-gray-600" />
+            <h2 className="mt-5 font-display text-3xl font-semibold text-white">Aucun gagnant pour le moment</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-500">
+              Les résultats seront dévoilés dès la clôture officielle du vote.
+            </p>
+            <button
+              type="button"
               onClick={() => navigate('/vote')}
-              className="border-2 border-white/20 text-white px-8 py-3 rounded-full font-medium hover:bg-white/10 transition-all duration-300"
+              className="winners-actions__secondary mt-8"
             >
-              <ArrowLeft className="w-4 h-4 inline mr-2" />
-              Retour au vote
-            </motion.button>
+              <ArrowLeft className="h-4 w-4" />
+              Participer au vote
+            </button>
           </motion.div>
         )}
 
-        {/* Decorative Footer */}
-        <div className="mt-12 text-center">
-          <div className="flex items-center justify-center gap-2 text-gray-600 text-xs">
-            <Heart className="w-3 h-3 text-gold-500/50" />
-            <span>Félicitations aux gagnants</span>
-            <Heart className="w-3 h-3 text-gold-500/50" />
+        <footer className="mt-14 text-center">
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-600">
+            <Heart className="h-3 w-3 text-gold-500/50" />
+            <span>Félicitations aux lauréats et merci à toute la communauté</span>
+            <Heart className="h-3 w-3 text-gold-500/50" />
           </div>
-        </div>
+        </footer>
 
-        {/* Admin Access */}
-        <div className="absolute bottom-4 right-4">
-          <button
-            onClick={() => navigate('/admin/dashboard')}
-            className="text-gray-700 hover:text-gray-500 text-xs transition-colors duration-300 flex items-center gap-1 opacity-50 hover:opacity-100"
-          >
-            <Settings className="w-3 h-3" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/admin/dashboard')}
+          className="absolute bottom-5 right-5 flex items-center gap-1 text-xs text-gray-700 opacity-40 transition hover:text-gray-500 hover:opacity-100"
+          aria-label="Accès administration"
+        >
+          <Settings className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   );

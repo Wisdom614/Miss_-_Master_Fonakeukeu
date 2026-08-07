@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { collection, doc, getDoc, onSnapshot, query } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query } from 'firebase/firestore';
 import { Crown, ChevronLeft, ChevronRight, RefreshCw, Star, Trophy, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '../firebase/config';
+import { isResultsVisible } from '../utils/resultsVisibility';
+import ResultsHidden from '../components/ResultsHidden';
 
 const ITEMS_PER_PAGE = 10;
 const fallbackImage = 'https://via.placeholder.com/160x160/17251e/e8c56a?text=?';
@@ -11,26 +13,76 @@ const fallbackImage = 'https://via.placeholder.com/160x160/17251e/e8c56a?text=?'
 const Results = () => {
   const [candidates, setCandidates] = useState([]);
   const [settings, setSettings] = useState(null);
+  const [settingsReady, setSettingsReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
   const [currentPage, setCurrentPage] = useState(0);
 
+  const resultsVisible = isResultsVisible(settings);
+
   useEffect(() => {
-    getDoc(doc(db, 'system', 'settings')).then((snapshot) => { if (snapshot.exists()) setSettings(snapshot.data()); }).catch((error) => console.error('Error loading settings:', error));
-    const unsubscribe = onSnapshot(query(collection(db, 'candidates')), (snapshot) => {
-      const data = snapshot.docs.map((candidate) => ({ id: candidate.id, ...candidate.data() })).sort((a, b) => (b.votes || 0) - (a.votes || 0));
-      setCandidates(data); setLoading(false); setRefreshing(false);
-    }, (error) => { console.error('Error loading results:', error); setLoading(false); setRefreshing(false); });
-    return unsubscribe;
+    const settingsRef = doc(db, 'system', 'settings');
+    const unsubscribeSettings = onSnapshot(
+      settingsRef,
+      (snapshot) => {
+        setSettings(snapshot.exists() ? snapshot.data() : null);
+        setSettingsReady(true);
+      },
+      (error) => {
+        console.error('Error loading settings:', error);
+        setSettingsReady(true);
+      },
+    );
+    return unsubscribeSettings;
   }, []);
 
+  useEffect(() => {
+    if (!settingsReady || !resultsVisible) {
+      setLoading(false);
+      return undefined;
+    }
+
+    setLoading(true);
+    const unsubscribe = onSnapshot(
+      query(collection(db, 'candidates')),
+      (snapshot) => {
+        const data = snapshot.docs
+          .map((candidate) => ({ id: candidate.id, ...candidate.data() }))
+          .sort((a, b) => (b.votes || 0) - (a.votes || 0));
+        setCandidates(data);
+        setLoading(false);
+        setRefreshing(false);
+      },
+      (error) => {
+        console.error('Error loading results:', error);
+        setLoading(false);
+        setRefreshing(false);
+      },
+    );
+
+    return unsubscribe;
+  }, [settingsReady, resultsVisible]);
+
+  if (settingsReady && !resultsVisible) {
+    return (
+      <ResultsHidden
+        siteName={settings?.siteName || 'Miss & Master Fonakeukeu'}
+        editionYear={settings?.editionYear || '2026'}
+      />
+    );
+  }
+
   const totalVotes = candidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
-  const categories = { all: candidates, miss: candidates.filter((candidate) => candidate.category?.includes('Miss')), master: candidates.filter((candidate) => candidate.category?.includes('Master')) };
+  const categories = {
+    all: candidates,
+    miss: candidates.filter((candidate) => candidate.category?.includes('Miss')),
+    master: candidates.filter((candidate) => candidate.category?.includes('Master')),
+  };
   const displayed = categories[activeCategory];
   const totalPages = Math.ceil(displayed.length / ITEMS_PER_PAGE);
   const rows = displayed.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
-  const percentage = (votes) => totalVotes ? (votes / totalVotes) * 100 : 0;
+  const percentage = (votes) => (totalVotes ? (votes / totalVotes) * 100 : 0);
   const changeCategory = (category) => { setActiveCategory(category); setCurrentPage(0); };
   const refresh = () => { setRefreshing(true); toast.success('Classement actualisé'); setTimeout(() => setRefreshing(false), 450); };
   const siteName = settings?.siteName || 'Miss & Master Fonakeukeu';

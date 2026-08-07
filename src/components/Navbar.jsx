@@ -8,7 +8,7 @@ const CountdownTicker = ({ countdown }) => {
   const [timeLeft, setTimeLeft] = useState(null);
 
   useEffect(() => {
-    if (!countdown?.enabled || !countdown?.targetDate) return undefined;
+    if (!countdown?.targetDate) return undefined;
     const update = () => {
       const remaining = Math.max(0, new Date(countdown.targetDate).getTime() - Date.now());
       const days = Math.floor(remaining / 86400000);
@@ -22,7 +22,7 @@ const CountdownTicker = ({ countdown }) => {
     return () => clearInterval(timer);
   }, [countdown?.enabled, countdown?.targetDate]);
 
-  if (!countdown?.enabled || !countdown?.targetDate || !timeLeft) return null;
+  if (!countdown?.targetDate || !timeLeft) return null;
   const timerText = timeLeft.expired
     ? 'Les votes sont maintenant clos'
     : `${timeLeft.days}j ${String(timeLeft.hours).padStart(2, '0')}h ${String(timeLeft.minutes).padStart(2, '0')}m ${String(timeLeft.seconds).padStart(2, '0')}s`;
@@ -31,7 +31,7 @@ const CountdownTicker = ({ countdown }) => {
     : (countdown.title || 'Le vote se termine bientôt');
 
   return (
-    <div className="relative overflow-hidden border-t border-gold-400/15 bg-[#0b100d]/90 px-3 py-1.5" aria-live="polite" aria-label="Temps restant pour voter">
+    <div className="countdown-strip relative overflow-hidden border-b border-gold-400/20 bg-[#090e0b]/95 px-3 py-2" aria-live="polite" aria-label="Temps restant pour voter">
       <div className="nav-marquee flex w-max min-w-full items-center gap-10 whitespace-nowrap text-xs">
         {[0, 1].map((copy) => (
           <div key={copy} className="flex items-center gap-3 text-gray-300">
@@ -46,21 +46,23 @@ const CountdownTicker = ({ countdown }) => {
   );
 };
 
-const Navbar = ({ countdown }) => {
+const Navbar = ({ countdown, resultsVisible = true }) => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   const navItems = [
     { path: '/', icon: Home, label: 'Accueil' },
     { path: '/vote', icon: Vote, label: 'Voter' },
-    { path: '/results', icon: BarChart3, label: 'Résultats' },
+    ...(resultsVisible ? [{ path: '/results', icon: BarChart3, label: 'Résultats' }] : []),
   ];
 
   const isActive = (path) => location.pathname === path;
 
   return (
     <>
-      <nav className="sticky top-0 left-0 right-0 z-50 border-b border-gold-500/25 bg-[#101713]/95 shadow-[0_12px_35px_rgba(0,0,0,.24)] backdrop-blur-xl">
+      <header className="sticky top-0 left-0 right-0 z-50 shadow-[0_12px_35px_rgba(0,0,0,.24)]">
+        <CountdownTicker countdown={countdown} />
+      <nav className="border-b border-gold-500/25 bg-[#101713]/95 backdrop-blur-xl">
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
           <div className="flex h-14 items-center justify-between sm:h-16">
             {/* Logo - Fixed Gradient */}
@@ -111,9 +113,7 @@ const Navbar = ({ countdown }) => {
             </button>
           </div>
         </div>
-        <CountdownTicker countdown={countdown} />
-
-        {/* Mobile menu is anchored to the header, including the countdown line. */}
+        {/* Mobile menu is anchored below the main navigation. */}
         <AnimatePresence>
         {isMenuOpen && (
           <motion.div
@@ -146,6 +146,7 @@ const Navbar = ({ countdown }) => {
         )}
         </AnimatePresence>
       </nav>
+      </header>
     </>
   );
 };
